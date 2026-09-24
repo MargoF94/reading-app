@@ -91,6 +91,22 @@
     return list.sort(by[sort] ?? by.added);
   });
 
+  // One-tap shelves; counts follow the Books/Fics choice.
+  const SHELVES = [
+    { value: 'want-to-read', label: 'Want to Read', short: 'Want' },
+    { value: 'currently-reading', label: 'Currently Reading', short: 'Reading' },
+    { value: 'read', label: 'Read', short: 'Read' },
+  ];
+  const shelfCounts = $derived.by(() => {
+    const c: Record<string, number> = {};
+    for (const i of library.items) {
+      if (type && i.type !== type) continue;
+      const st = library.status(i.id);
+      c[st] = (c[st] ?? 0) + 1;
+    }
+    return c;
+  });
+
   const activeFilters = $derived([type, status, format, lang, wip].filter(Boolean).length);
 </script>
 
@@ -128,6 +144,22 @@
       <Icon name="list" size={18} />
     </button>
   </div>
+</div>
+
+<div class="shelves" role="group" aria-label="Shelf">
+  <button type="button" class:on={!status} aria-pressed={!status} onclick={() => router.setQuery({ status: undefined })}>All</button>
+  {#each SHELVES as sh (sh.value)}
+    <button
+      type="button"
+      class:on={status === sh.value}
+      aria-pressed={status === sh.value}
+      aria-label="{sh.label}, {shelfCounts[sh.value] ?? 0}"
+      onclick={() => router.setQuery({ status: status === sh.value ? undefined : sh.value })}
+    >
+      <span class="long">{sh.label}</span><span class="short" aria-hidden="true">{sh.short}</span>
+      <span class="count">{shelfCounts[sh.value] ?? 0}</span>
+    </button>
+  {/each}
 </div>
 
 <div class="type-tabs" role="group" aria-label="Type">
@@ -185,7 +217,7 @@
       </button>
     {/if}
   </div>
-{:else if status}
+{:else if status && !SHELVES.some((sh) => sh.value === status)}
   <div class="chips" style="margin-bottom:1rem">
     <button type="button" class="chip accent" onclick={() => router.setQuery({ status: undefined })}>
       {STATUSES.find((s) => s.value === status)?.label}
@@ -258,6 +290,63 @@
     .view {
       display: flex;
     }
+  }
+
+  .shelves {
+    display: flex;
+    gap: 0;
+    margin-bottom: 0.6rem;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .shelves button {
+    flex-shrink: 0;
+    border: none;
+    background: none;
+    color: var(--text-2);
+    font-weight: 500;
+    padding: 0.6rem 0.8rem;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    white-space: nowrap;
+  }
+
+  .shelves button:hover {
+    color: var(--text);
+  }
+
+  .shelves button.on {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    font-weight: 600;
+  }
+
+  .short {
+    display: none;
+  }
+
+  @media (max-width: 520px) {
+    .shelves button {
+      flex: 1;
+      padding: 0.6rem 0.3rem;
+    }
+
+    .long {
+      display: none;
+    }
+
+    .short {
+      display: inline;
+    }
+  }
+
+  .count {
+    font-size: 0.8rem;
+    color: var(--text-2);
+    font-weight: 400;
+    margin-left: 0.15rem;
   }
 
   .type-tabs {
