@@ -6,7 +6,7 @@
   import {
     ao3Bookmarklet,
     decodePayload,
-    draftFromHtmlFile,
+    draftFromFile,
     draftFromPayload,
     goodreadsBookmarklet,
   } from '../lib/import/payload';
@@ -53,7 +53,7 @@
     if (!file) return;
     pageError = '';
     try {
-      open(draftFromHtmlFile(await file.text()));
+      open(await draftFromFile(file));
     } catch (err) {
       pageError = err instanceof Error ? err.message : String(err);
     } finally {
@@ -79,18 +79,18 @@
   <GoodreadsImport />
 
   <section class="card stack">
-    <h2>A saved page</h2>
+    <h2>A fic or book file</h2>
     <p class="small" style="margin:0">
-      An AO3 fic (its page saved from the browser, or AO3’s <strong>Download → HTML</strong>) or a saved Goodreads book
-      page. The details open in the add form so you can check them before saving. If it’s already in your library (for
+      An AO3 fic (AO3’s <strong>Download → EPUB</strong> or <strong>HTML</strong>, or its page saved from the browser) or
+      a saved Goodreads book page. The details open in the add form so you can check them before saving. If it’s already in your library (for
       example a work-in-progress fic with new chapters), its details are updated instead.
     </p>
     <div>
       <button type="button" class="btn" onclick={() => fileInput?.click()}>
-        <Icon name="upload" size={18} /> Choose .html file
+        <Icon name="upload" size={18} /> Choose .epub or .html file
       </button>
     </div>
-    <input bind:this={fileInput} type="file" accept=".html,.htm,text/html" hidden onchange={readPage} />
+    <input bind:this={fileInput} type="file" accept=".epub,.html,.htm,application/epub+zip,text/html" hidden onchange={readPage} />
   </section>
 
   <section class="card stack">

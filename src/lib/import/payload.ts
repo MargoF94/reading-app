@@ -1,5 +1,6 @@
 // Page data handed over by the bookmarklets in the URL: #/import?d=<base64url(JSON)>.
 import type { ItemDraft } from '../drafts';
+import { draftFromEpub, isZip } from './epub';
 import { collectAo3, isAo3Document, parseAo3Document, parseAo3Html } from './ao3';
 import {
   collectGoodreads,
@@ -47,4 +48,11 @@ export function ao3Bookmarklet(appUrl: string): string {
 
 export function goodreadsBookmarklet(appUrl: string): string {
   return bookmarklet(appUrl, collectGoodreads);
+}
+
+/** A saved page (.html) or an AO3 EPUB download. */
+export async function draftFromFile(file: File): Promise<ItemDraft> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (isZip(bytes) || /\.epub$/i.test(file.name)) return draftFromEpub(bytes);
+  return draftFromHtmlFile(new TextDecoder().decode(bytes));
 }
