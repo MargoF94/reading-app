@@ -138,7 +138,7 @@
   <div class="hero">
     <div class="cover-col">
       <button type="button" class="cover-btn" onclick={() => (showCover = true)} aria-label="Change cover">
-        <Cover {item} width={180} />
+        <Cover {item} width="var(--hero-cover)" />
         <span class="cover-hint"><Icon name="edit" size={14} /> Change cover</span>
       </button>
     </div>
@@ -331,6 +331,8 @@
   }
 
   .hero {
+    /* Phones: a large cover; wider screens put it beside the details. */
+    --hero-cover: min(86vw, 340px);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -447,6 +449,7 @@
 
   @media (min-width: 700px) {
     .hero {
+      --hero-cover: 180px;
       flex-direction: row;
       align-items: flex-start;
       text-align: left;

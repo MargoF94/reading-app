@@ -5,7 +5,8 @@
   import { hashHue } from '../lib/util';
 
   // `preview` shows an image that isn't saved yet (e.g. a photo picked in the form).
-  let { item, width = 120, preview = undefined }: { item: Item; width?: number; preview?: string } = $props();
+  // `width` is in pixels, or any CSS length (e.g. one that changes with screen size).
+  let { item, width = 120, preview = undefined }: { item: Item; width?: number | string; preview?: string } = $props();
 
   let src = $state<string | null>(null);
   let failed = $state(false);
@@ -31,7 +32,7 @@
   });
 </script>
 
-<div class="cover" style:width="{width}px" style:--hue={hue}>
+<div class="cover" style:width={typeof width === 'number' ? `${width}px` : width} style:--hue={hue}>
   {#if src && !failed}
     <img {src} alt="" loading="lazy" onerror={() => (failed = true)} />
   {:else}
