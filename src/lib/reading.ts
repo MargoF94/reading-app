@@ -2,13 +2,23 @@
 import type { Item, ProgressEntry, ProgressUnit, Reading, Status } from './types';
 import { newId } from './util';
 
+/**
+ * Chronological sort key. Read-throughs without any date are past reads of
+ * unknown time (e.g. imported from Goodreads), so they sort before dated ones.
+ */
 export function readingSortKey(r: Reading): string {
-  return (r.startDate || r.finishDate || r.createdAt.slice(0, 10)) + '|' + r.createdAt;
+  const d = r.startDate || r.finishDate;
+  return (d ? '1' + d : '0') + '|' + r.createdAt;
 }
 
 /** Oldest first. */
 export function sortReadings(readings: Reading[]): Reading[] {
-  return readings.filter((r) => !r.deleted).sort((a, b) => (readingSortKey(a) < readingSortKey(b) ? -1 : 1));
+  return readings.filter((r) => !r.deleted).sort((a, b) => {
+    const ka = readingSortKey(a);
+    const kb = readingSortKey(b);
+    if (ka !== kb) return ka < kb ? -1 : 1;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
 }
 
 export function isActive(r: Reading): boolean {
@@ -187,4 +197,13 @@ export function lastFinishDate(readings: Reading[]): string | undefined {
     .filter((d): d is string => !!d)
     .sort()
     .at(-1);
+}
+
+/** Chapters posted beyond the last one logged in the current read-through (fics only). */
+export function unreadChapters(item: Item, readings: Reading[]): number {
+  const available = item.fic?.chaptersAvailable;
+  const active = activeReading(readings);
+  if (!available || !active) return 0;
+  const lastChapter = [...active.log].reverse().find((e) => e.unit === 'chapters');
+  return lastChapter ? Math.max(0, available - lastChapter.value) : 0;
 }

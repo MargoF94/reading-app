@@ -8,7 +8,8 @@
   import StatusMenu from '../components/StatusMenu.svelte';
   import { AO3_RATINGS, CURRENCIES, FORMAT_LABEL, LANGUAGE_NAME, PURCHASE_SOURCES } from '../lib/constants';
   import { renderMarkdown } from '../lib/markdown';
-  import { activeReading, entryLabel, entryPercent, formatMinutes, latestEntry } from '../lib/reading';
+  import { convert } from '../lib/fx';
+  import { activeReading, entryLabel, entryPercent, formatMinutes, latestEntry, unreadChapters } from '../lib/reading';
   import { router } from '../lib/router.svelte';
   import { library } from '../lib/store.svelte';
   import { toasts } from '../lib/toast.svelte';
@@ -39,11 +40,26 @@
     router.go('/library', true);
   }
 
+  const displayCurrency = $derived(library.settings.displayCurrency);
+  const newChapters = $derived(item ? unreadChapters(item, library.readings(item.id)) : 0);
+
+  /** "¥1,540 ≈ $10.46" when the purchase was in the other currency and the rate is known. */
+  function priceLabel(price: number, currency: Currency, fx: Parameters<typeof convert>[3]): string {
+    const base = formatMoney(price, currency);
+    if (currency === displayCurrency) return base;
+    const v = convert(price, currency, displayCurrency, fx);
+    return v === undefined ? base : `${base} ≈ ${formatMoney(v, displayCurrency)}`;
+  }
+
   const spent = $derived.by(() => {
-    const totals = new Map<Currency, number>();
-    for (const p of item?.book?.purchases ?? []) {
-      if (p.price) totals.set(p.currency, (totals.get(p.currency) ?? 0) + p.price);
+    const priced = (item?.book?.purchases ?? []).filter((p) => p.price);
+    if (priced.length < 2) return '';
+    const converted = priced.map((p) => convert(p.price!, p.currency, displayCurrency, p.fx));
+    if (converted.every((v) => v !== undefined)) {
+      return formatMoney(converted.reduce((a, b) => a! + b!, 0)!, displayCurrency);
     }
+    const totals = new Map<Currency, number>();
+    for (const p of priced) totals.set(p.currency, (totals.get(p.currency) ?? 0) + p.price!);
     return [...totals].map(([c, v]) => formatMoney(v, c)).join(' + ');
   });
 
@@ -58,6 +74,8 @@
     if (b?.narrator) rows.push(['Narrator', b.narrator]);
     if (b?.publisherId) rows.push(['Publisher', library.name('publishers', b.publisherId)]);
     if (b?.publicationDate) rows.push(['Published', formatDate(b.publicationDate)]);
+    if (b?.originalPublicationYear && String(b.originalPublicationYear) !== b.publicationDate?.slice(0, 4))
+      rows.push(['First published', String(b.originalPublicationYear)]);
     if (b?.isbn13 || b?.isbn10) rows.push(['ISBN', [b.isbn13, b.isbn10].filter(Boolean).join(' / ')]);
     if (item.language) rows.push(['Language', LANGUAGE_NAME[item.language] ?? item.language]);
     if (item.originalLanguage && item.originalLanguage !== item.language)
@@ -126,6 +144,9 @@
         {/if}
       </div>
 
+      {#if newChapters}
+        <p class="new-chapters">{newChapters} new {newChapters === 1 ? 'chapter' : 'chapters'} since your last update</p>
+      {/if}
       {#if status === 'currently-reading' || status === 'on-hold'}
         <div class="progress">
           <ProgressBar
@@ -232,14 +253,14 @@
           <ul class="purchases">
             {#each item.book.purchases as p (p.id)}
               <li>
-                <strong>{p.price !== undefined ? formatMoney(p.price, p.currency) : PURCHASE_SOURCES.find((s) => s.value === p.source)?.label}</strong>
+                <strong>{p.price !== undefined ? priceLabel(p.price, p.currency, p.fx) : PURCHASE_SOURCES.find((s) => s.value === p.source)?.label}</strong>
                 <span class="small muted">
                   {[p.price !== undefined && p.source !== 'bought' ? PURCHASE_SOURCES.find((s) => s.value === p.source)?.label : '', p.store, formatDate(p.date)].filter(Boolean).join(' · ')}
                 </span>
               </li>
             {/each}
           </ul>
-          {#if spent && item.book.purchases.length > 1}<p class="small">Total: <strong>{spent}</strong></p>{/if}
+          {#if spent}<p class="small">Total: <strong>{spent}</strong></p>{/if}
         </section>
       {/if}
     </aside>
@@ -297,6 +318,12 @@
   .progress {
     width: 100%;
     max-width: 360px;
+  }
+
+  .new-chapters {
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 0.9rem;
   }
 
   .rating {

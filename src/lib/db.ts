@@ -8,14 +8,23 @@ export interface MetaRow {
   value: unknown;
 }
 
+/** A cover photo uploaded from this device, or downloaded from the data repo. */
+export interface CoverFile {
+  path: string; // e.g. covers/<item id>-<stamp>.webp
+  blob: Blob;
+  pending: boolean; // not yet uploaded to the data repo
+}
+
 class ReadingDb extends Dexie {
   meta!: Table<MetaRow, string>;
+  coverFiles!: Table<CoverFile, string>;
 
   constructor() {
     super('reading-app');
     const schema: Record<string, string> = { meta: 'key' };
     for (const name of COLLECTION_NAMES) schema[name] = 'id';
     this.version(1).stores(schema);
+    this.version(2).stores({ ...schema, coverFiles: 'path' });
   }
 
   table_(name: keyof Collections): Table<BaseRecord, string> {

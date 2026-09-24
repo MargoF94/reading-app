@@ -1,5 +1,7 @@
 <script lang="ts">
+  import CoverFinder from '../components/CoverFinder.svelte';
   import ManageNames from '../components/ManageNames.svelte';
+  import { needsRates, withRates } from '../lib/fx';
   import { CURRENCIES } from '../lib/constants';
   import { checkRepo } from '../lib/github';
   import { parseLibraryFile, stableStringify, toLibraryFile } from '../lib/merge';
@@ -81,6 +83,28 @@
   }
 
   const lastSynced = $derived(sync.lastSyncedAt ? new Date(sync.lastSyncedAt).toLocaleString() : 'never');
+
+  let googleKey = $state(library.settings.googleBooksKey ?? '');
+
+  // Exchange rates for purchases saved offline or before rates existed.
+  const missingRates = $derived(library.items.filter((i) => i.book?.purchases.some(needsRates)));
+  let fillingRates = $state(false);
+
+  async function fillRates() {
+    fillingRates = true;
+    try {
+      const updated = [];
+      for (const item of missingRates) {
+        const purchases = await withRates(item.book!.purchases);
+        if (purchases.some((p, i) => p !== item.book!.purchases[i])) updated.push({ ...item, book: { ...item.book!, purchases } });
+      }
+      await library.put('items', updated);
+      const left = library.items.filter((i) => i.book?.purchases.some(needsRates)).length;
+      toasts.show(left ? `Couldn’t get rates for ${plural(left, 'book')}. Try again later.` : 'Exchange rates filled in.');
+    } finally {
+      fillingRates = false;
+    }
+  }
 </script>
 
 <h1>Settings</h1>
@@ -160,6 +184,43 @@
     </div>
   </section>
 
+  <section class="card stack">
+    <h2>Book lookups</h2>
+    <p class="small muted" style="margin:0">
+      Searching by ISBN or title uses Open Library and Google Books. Google’s free shared limit sometimes runs out; a
+      free personal key avoids that (Google Cloud Console → enable “Books API” → Credentials → API key, restricted to
+      this site’s address).
+    </p>
+    <label class="field">
+      <span>Google Books API key (optional)</span>
+      <input
+        bind:value={googleKey}
+        autocomplete="off"
+        placeholder="AIza…"
+        onchange={() => library.saveSettings({ googleBooksKey: googleKey.trim() || undefined })}
+      />
+    </label>
+  </section>
+
+  <section class="card stack">
+    <h2>Covers</h2>
+    <CoverFinder />
+  </section>
+
+  {#if missingRates.length}
+    <section class="card stack">
+      <h2>Exchange rates</h2>
+      <p class="small muted" style="margin:0">
+        {plural(missingRates.length, 'book has', 'books have')} prices without an exchange rate (saved while offline).
+      </p>
+      <div>
+        <button type="button" class="btn" disabled={fillingRates} onclick={fillRates}>
+          {fillingRates ? 'Looking up…' : 'Look up missing rates'}
+        </button>
+      </div>
+    </section>
+  {/if}
+
   <section class="card">
     <h2>Lists used in the book form</h2>
     <ManageNames collection="publishers" title="Publishers" />
@@ -170,7 +231,7 @@
   </section>
 
   <section class="card stack">
-    <h2>Backup</h2>
+    <h2>Backup &amp; import</h2>
     <p class="small muted" style="margin:0">
       {plural(library.items.length, 'item')} in your library. A backup file can be imported on any device; it is
       merged with what's already there.
@@ -180,6 +241,10 @@
       <button type="button" class="btn" onclick={() => fileInput?.click()}>Import backup…</button>
       <input bind:this={fileInput} type="file" accept="application/json,.json" hidden onchange={importJson} />
     </div>
+    <p class="small" style="margin:0">
+      To bring in your Goodreads library or add fics and books from AO3 and Goodreads pages, see
+      <a href="#/import">Import</a>. Uploaded cover photos live in the data repo, not in the backup file.
+    </p>
   </section>
 </div>
 

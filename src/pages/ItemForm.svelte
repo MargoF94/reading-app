@@ -1,8 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import BookLookup from '../components/BookLookup.svelte';
   import Combobox, { type Option } from '../components/Combobox.svelte';
+  import CoverField from '../components/CoverField.svelte';
+  import FicImport from '../components/FicImport.svelte';
   import Icon from '../components/Icon.svelte';
   import StarRating from '../components/StarRating.svelte';
+  import { discardCover, isRepoCover, saveCover } from '../lib/covers';
+  import { loadDraft, saveDraft, type ItemDraft } from '../lib/drafts';
+  import { convert, withRates } from '../lib/fx';
+  import { cleanIsbn, validIsbn10, validIsbn13 } from '../lib/isbn';
   import {
     AO3_CATEGORIES,
     AO3_RATINGS,
@@ -16,16 +23,22 @@
   import { router } from '../lib/router.svelte';
   import { library, type NamedCollection } from '../lib/store.svelte';
   import { toasts } from '../lib/toast.svelte';
-  import type { Ao3Rating, BookFormat, Item, ItemType, Purchase, Status } from '../lib/types';
-  import { ao3WorkId, collator, newId, nowIso, parseNumber } from '../lib/util';
+  import type { Ao3Rating, BookFormat, Currency, Item, ItemType, Purchase, Status } from '../lib/types';
+  import { ao3WorkId, collator, formatDate, formatMoney, newId, normalize, nowIso, parseNumber, today } from '../lib/util';
 
-  let { id = undefined, type: initialType = 'book' }: { id?: string; type?: ItemType } = $props();
+  let {
+    id = undefined,
+    type: initialType = 'book',
+    draftId = undefined,
+  }: { id?: string; type?: ItemType; draftId?: string } = $props();
 
   // The page is re-created per item (see App.svelte), so reading props once is fine.
   // svelte-ignore state_referenced_locally
   const existing = id ? library.item(id) : undefined;
   const isNew = !existing;
-
+  const itemId = existing?.id ?? newId();
+  // svelte-ignore state_referenced_locally
+  const draft = loadDraft(draftId);
   // ---- form state (numbers kept as strings while editing) ----
   // svelte-ignore state_referenced_locally
   let type = $state<ItemType>(existing?.type ?? initialType);
@@ -55,6 +68,7 @@
   let narrator = $state(b?.narrator ?? '');
   let publisherId = $state<string | undefined>(b?.publisherId);
   let publicationDate = $state(b?.publicationDate ?? '');
+  let originalYear = $state(b?.originalPublicationYear?.toString() ?? '');
   let isbn13 = $state(b?.isbn13 ?? '');
   let isbn10 = $state(b?.isbn10 ?? '');
   let goodreadsUrl = $state(b?.goodreadsUrl ?? '');
@@ -80,9 +94,11 @@
   let bookmarks = $state(f?.bookmarks?.toString() ?? '');
   let comments = $state(f?.comments?.toString() ?? '');
 
+  let photo = $state<Blob | null>(null);
   let initialStatus = $state<Status>('want-to-read');
   let errors = $state<Record<string, string>>({});
   let saving = $state(false);
+  let banner = $state('');
 
   // ---- reference data: new names are created only when the form is saved ----
   const NEW = 'new:';
@@ -121,23 +137,106 @@
     }
   });
 
+  // ---- pre-filled data from lookups and imports ----
+
+  /** Existing record id for a name (authors also match their other-script names), or a pending new one. */
+  function valueForName(coll: NamedCollection, name: string): string {
+    const key = normalize(name);
+    const found = library.named(coll).find(
+      (r) => normalize(r.name) === key || ('altNames' in r && (r.altNames as string[]).some((n) => normalize(n) === key)),
+    );
+    if (found) return found.id;
+    if (!(pending[coll] ?? []).some((n) => normalize(n) === key)) pending[coll] = [...(pending[coll] ?? []), name];
+    return NEW + (pending[coll] ?? []).find((n) => normalize(n) === key);
+  }
+
+  /**
+   * Copies draft values into the form. With `overwrite` false only empty fields
+   * are filled, so nothing typed by hand (or saved before) is lost.
+   */
+  function applyDraft(d: ItemDraft, overwrite: boolean) {
+    const want = (current: unknown) => overwrite || current === '' || current === undefined || (Array.isArray(current) && !current.length);
+    const str = (v: unknown) => (v === undefined || v === null ? undefined : String(v));
+    if (d.title && want(title)) title = d.title;
+    if (d.originalTitle && want(originalTitle)) originalTitle = d.originalTitle;
+    if (d.titleReading && want(titleReading)) titleReading = d.titleReading;
+    if (d.authors?.length && want(authorIds)) authorIds = [...new Set(d.authors.map((a) => valueForName('authors', a)))];
+    if (d.language && want(language)) language = d.language;
+    if (d.series && want(seriesId)) {
+      seriesId = valueForName('series', d.series);
+      seriesNumber = d.seriesNumber ?? '';
+    }
+    if (d.description && want(description)) description = d.description;
+    if (d.coverUrl && !photo && want(coverUrl)) coverUrl = d.coverUrl;
+    if (d.genres?.length) genreIds = [...new Set([...genreIds, ...d.genres.map((g) => valueForName('genres', g))])];
+    if (d.tags?.length) tagIds = [...new Set([...tagIds, ...d.tags.map((t) => valueForName('tags', t))])];
+    if (d.wordCount !== undefined && want(wordCount)) wordCount = String(d.wordCount);
+    const bk = d.book;
+    if (bk) {
+      if (bk.isbn13 && want(isbn13)) isbn13 = bk.isbn13;
+      if (bk.isbn10 && want(isbn10)) isbn10 = bk.isbn10;
+      if (bk.publisher && want(publisherId)) publisherId = valueForName('publishers', bk.publisher);
+      if (bk.publicationDate && want(publicationDate)) publicationDate = bk.publicationDate;
+      if (bk.format && want(format)) format = bk.format;
+      if (bk.pageCount && want(pageCount)) pageCount = String(bk.pageCount);
+      if (bk.goodreadsUrl && want(goodreadsUrl)) goodreadsUrl = bk.goodreadsUrl;
+      if (bk.originalPublicationYear && want(originalYear)) originalYear = String(bk.originalPublicationYear);
+    }
+    const fc = d.fic;
+    if (fc) {
+      if (fc.url && want(ficUrl)) ficUrl = fc.url;
+      if (fc.rating && want(ficRating)) ficRating = fc.rating;
+      if (fc.warnings?.length && want(warnings)) warnings = [...fc.warnings];
+      if (fc.categories?.length && want(categories)) categories = [...fc.categories];
+      if (fc.fandoms?.length && want(fandoms)) fandoms = [...fc.fandoms];
+      if (fc.relationships?.length && want(relationships)) relationships = [...fc.relationships];
+      if (fc.characters?.length && want(characters)) characters = [...fc.characters];
+      if (fc.additionalTags?.length && want(additionalTags)) additionalTags = [...fc.additionalTags];
+      if (fc.publishedDate && want(publishedDate)) publishedDate = fc.publishedDate;
+      if (fc.updatedDate && want(updatedDate)) updatedDate = fc.updatedDate;
+      if (fc.completedDate && want(completedDate)) completedDate = fc.completedDate;
+      if (fc.complete !== undefined && overwrite) complete = fc.complete;
+      if (fc.chaptersAvailable !== undefined && want(chaptersAvailable)) chaptersAvailable = String(fc.chaptersAvailable);
+      if (overwrite || !chaptersTotal) chaptersTotal = str(fc.chaptersTotal) ?? '';
+      if (fc.kudos !== undefined) kudos = String(fc.kudos);
+      if (fc.hits !== undefined) hits = String(fc.hits);
+      if (fc.bookmarks !== undefined) bookmarks = String(fc.bookmarks);
+      if (fc.comments !== undefined) comments = String(fc.comments);
+      if (fc.statsDate) statsDate = fc.statsDate;
+    }
+  }
+
+  // svelte-ignore state_referenced_locally
+  let statsDate = $state(f?.statsDate);
+
+  if (draft) {
+    // New items take everything; an existing fic re-imported from AO3 takes the new
+    // metadata; an existing book only gets its gaps filled.
+    const overwrite = isNew || draft.type === 'fic';
+    const before = { chapters: existing?.fic?.chaptersAvailable, words: existing?.wordCount };
+    if (isNew) type = draft.type;
+    applyDraft(draft, overwrite);
+    if (isNew) banner = `Filled in from ${draft.source ?? 'the import'}. Check the details and save.`;
+    else if (draft.type === 'fic') {
+      const changes = [];
+      if (draft.fic?.chaptersAvailable !== undefined && draft.fic.chaptersAvailable !== before.chapters)
+        changes.push(`chapters ${before.chapters ?? '?'} → ${draft.fic.chaptersAvailable}`);
+      if (draft.wordCount !== undefined && draft.wordCount !== before.words)
+        changes.push(`words ${before.words?.toLocaleString('en-US') ?? '?'} → ${draft.wordCount.toLocaleString('en-US')}`);
+      banner = `Updated from AO3${changes.length ? ': ' + changes.join(', ') : ' (no changes in chapters or words)'}. Save to keep it.`;
+    } else banner = `Filled in missing details from ${draft.source ?? 'the import'}. Save to keep them.`;
+  }
+
+  /** A fic from an AO3 file: if it's already in the library, offer to update that one instead. */
+  function ficImported(d: ItemDraft) {
+    const dup = isNew ? library.ficByWorkId(d.fic?.workId) : undefined;
+    if (dup && confirm(`“${dup.title}” is already in your library. Update it with the new details instead?`)) {
+      router.go(`/item/${dup.id}/edit?draft=${saveDraft(d)}`, true);
+      return;
+    }
+    applyDraft(d, true);
+  }
   // ---- validation helpers ----
-  function cleanIsbn(v: string): string {
-    return v.replace(/[^0-9Xx]/g, '').toUpperCase();
-  }
-
-  function validIsbn13(v: string): boolean {
-    if (!/^\d{13}$/.test(v)) return false;
-    const sum = [...v].reduce((s, d, i) => s + Number(d) * (i % 2 ? 3 : 1), 0);
-    return sum % 10 === 0;
-  }
-
-  function validIsbn10(v: string): boolean {
-    if (!/^\d{9}[\dX]$/.test(v)) return false;
-    const sum = [...v].reduce((s, d, i) => s + (d === 'X' ? 10 : Number(d)) * (10 - i), 0);
-    return sum % 11 === 0;
-  }
-
   function num(v: string, field: string, errs: Record<string, string>): number | undefined {
     if (v.trim() === '') return undefined;
     const n = parseNumber(v);
@@ -157,6 +256,7 @@
       if (i10 && !validIsbn10(i10)) errs.isbn10 = 'This doesn’t look like a valid ISBN-10.';
       if (publicationDate && !/^\d{4}(-\d{2}(-\d{2})?)?$/.test(publicationDate))
         errs.publicationDate = 'Use YYYY, YYYY-MM or YYYY-MM-DD.';
+      if (originalYear && !/^\d{1,4}$/.test(originalYear.trim())) errs.originalYear = 'Enter a year, e.g. 1987.';
     }
     const words = num(wordCount, 'wordCount', errs);
     const pages = num(pageCount, 'pageCount', errs);
@@ -187,8 +287,22 @@
     saving = true;
     try {
       const now = nowIso();
+      // Cover: a new photo is stored as a file; a replaced uploaded photo is cleaned up.
+      let finalCover = coverUrl.trim() || undefined;
+      if (photo) finalCover = await saveCover(itemId, photo);
+      if (existing?.coverUrl && isRepoCover(existing.coverUrl) && existing.coverUrl !== finalCover) {
+        await discardCover(existing.coverUrl);
+      }
+      // Exchange rates for new prices (skipped quietly if offline or slow).
+      let finalPurchases: Purchase[] = $state.snapshot(purchases).map((p) => ({ ...p, store: p.store?.trim() || undefined }));
+      if (type === 'book' && finalPurchases.some((p) => p.price !== undefined && !p.fx) && navigator.onLine) {
+        finalPurchases = await Promise.race([
+          withRates(finalPurchases),
+          new Promise<Purchase[]>((r) => setTimeout(() => r(finalPurchases), 6000)),
+        ]);
+      }
       const item: Item = {
-        id: existing?.id ?? newId(),
+        id: itemId,
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
         type,
@@ -203,7 +317,7 @@
         seriesId: seriesId ? await resolve('series', seriesId) : undefined,
         seriesNumber: seriesId ? seriesNumber.trim() || undefined : undefined,
         description: description.trim() || undefined,
-        coverUrl: coverUrl.trim() || undefined,
+        coverUrl: finalCover,
         rating,
         review: review.trim() || undefined,
         reviewSpoiler: review.trim() ? reviewSpoiler : undefined,
@@ -219,10 +333,11 @@
           narrator: isAudio ? narrator.trim() || undefined : undefined,
           publisherId: publisherId ? await resolve('publishers', publisherId) : undefined,
           publicationDate: publicationDate || undefined,
+          originalPublicationYear: originalYear.trim() ? Number(originalYear) : undefined,
           isbn13: i13 || undefined,
           isbn10: i10 || undefined,
           goodreadsUrl: goodreadsUrl.trim() || undefined,
-          purchases: $state.snapshot(purchases).map((p) => ({ ...p, store: p.store?.trim() || undefined })),
+          purchases: finalPurchases,
         };
       } else {
         item.wordCountEstimated = undefined;
@@ -247,7 +362,7 @@
           hits: parseNumber(hits),
           bookmarks: parseNumber(bookmarks),
           comments: parseNumber(comments),
-          statsDate: f?.statsDate,
+          statsDate,
         };
       }
       await library.saveItem(item);
@@ -257,6 +372,24 @@
     } finally {
       saving = false;
     }
+  }
+
+  const other = (c: Currency): Currency => (c === 'JPY' ? 'USD' : 'JPY');
+
+  function fxLine(p: Purchase): string {
+    if (p.price === undefined) return '';
+    if (!p.fx) return 'The exchange rate is looked up when you save.';
+    const to = other(p.currency);
+    const v = convert(p.price, p.currency, to, p.fx);
+    const jpy = p.fx.perUsd.JPY;
+    return v === undefined || !jpy
+      ? ''
+      : `≈ ${formatMoney(v, to)} at ¥${jpy.toFixed(2)} per $1 (${p.fx.manual ? 'your rate' : formatDate(p.fx.date)})`;
+  }
+
+  function setRate(p: Purchase, value: string) {
+    const jpy = parseNumber(value);
+    p.fx = jpy && jpy > 0 ? { date: p.date ?? today(), perUsd: { USD: 1, JPY: jpy }, manual: true } : undefined;
   }
 
   function addPurchase() {
@@ -281,6 +414,13 @@
 
 <h1>{isNew ? (type === 'fic' ? 'Add a fic' : 'Add a book') : `Edit ${type === 'fic' ? 'fic' : 'book'}`}</h1>
 
+{#if banner}<p class="banner" role="status">{banner}</p>{/if}
+{#if isNew && !draft}
+  <p class="small muted import-hint">
+    Moving from Goodreads, or adding from AO3 in one click? See <a href="#/import">Import</a>.
+  </p>
+{/if}
+
 <form class="stack" onsubmit={save} novalidate>
   {#if isNew}
     <div class="type-switch" role="radiogroup" aria-label="Type">
@@ -291,6 +431,12 @@
         <input type="radio" bind:group={type} value="fic" class="visually-hidden" /> Fanfic (AO3)
       </label>
     </div>
+  {/if}
+
+  {#if type === 'book'}
+    <BookLookup onpick={(d) => applyDraft(d, isNew)} initial={isbn13} />
+  {:else}
+    <FicImport onimport={ficImported} />
   {/if}
 
   <fieldset class="card stack">
@@ -418,7 +564,11 @@
       </div>
       <div class="grid-2">
         <label class="field"><span>Goodreads link</span><input type="url" bind:value={goodreadsUrl} placeholder="https://www.goodreads.com/book/show/…" /></label>
-        <label class="field"><span>Cover image URL</span><input type="url" bind:value={coverUrl} placeholder="https://…" /></label>
+        <label class="field">
+          <span>First published (year)</span>
+          <input bind:value={originalYear} inputmode="numeric" placeholder="If different from this edition" aria-invalid={!!errors.originalYear} />
+          {#if errors.originalYear}<span class="error">{errors.originalYear}</span>{/if}
+        </label>
       </div>
       <label class="field">
         <span>Word count (optional)</span>
@@ -507,6 +657,11 @@
 
   <fieldset class="card stack">
     <legend>{type === 'fic' ? 'Summary & shelving' : 'Description & shelving'}</legend>
+    <CoverField
+      item={{ ...(existing ?? ({ id: itemId, createdAt: '', updatedAt: '', genreIds: [], tagIds: [] } as unknown as Item)), type, title: title || 'Untitled', authorIds }}
+      bind:coverUrl
+      bind:photo
+    />
     <label class="field">
       <span>{type === 'fic' ? 'Summary' : 'Description'}</span>
       <textarea bind:value={description} rows="5"></textarea>
@@ -578,7 +733,14 @@
             </label>
             <label class="field">
               <span>Date</span>
-              <input type="date" value={p.date ?? ''} onchange={(e) => (p.date = e.currentTarget.value || undefined)} />
+              <input
+                type="date"
+                value={p.date ?? ''}
+                onchange={(e) => {
+                  p.date = e.currentTarget.value || undefined;
+                  if (!p.fx?.manual) p.fx = undefined;
+                }}
+              />
             </label>
             <label class="field">
               <span>Store</span>
@@ -590,6 +752,23 @@
               </button>
             </div>
           </div>
+          {#if p.price !== undefined}
+            <div class="fx small muted">
+              <span>{fxLine(p)}</span>
+              <details>
+                <summary>Set the rate yourself</summary>
+                <label class="field rate">
+                  <span>Yen per 1 US dollar</span>
+                  <input
+                    inputmode="decimal"
+                    value={p.fx?.perUsd.JPY ?? ''}
+                    placeholder="e.g. 147.5"
+                    onchange={(e) => setRate(p, e.currentTarget.value)}
+                  />
+                </label>
+              </details>
+            </div>
+          {/if}
         </div>
       {/each}
       {#if errors.purchases}<span class="error">{errors.purchases}</span>{/if}
@@ -692,6 +871,36 @@
   .purchase {
     padding-bottom: 1rem;
     border-bottom: 1px solid var(--border);
+  }
+
+  .fx {
+    margin-top: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .fx summary {
+    cursor: pointer;
+    color: var(--accent);
+  }
+
+  .rate {
+    max-width: 220px;
+    margin-top: 0.4rem;
+  }
+
+  .banner {
+    background: var(--accent-soft);
+    color: var(--text);
+    border-radius: var(--radius-sm);
+    padding: 0.7rem 0.9rem;
+    margin: 0 0 1rem;
+    max-width: 760px;
+  }
+
+  .import-hint {
+    margin: -0.25rem 0 1rem;
   }
 
   .remove {

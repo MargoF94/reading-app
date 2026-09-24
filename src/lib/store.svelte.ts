@@ -1,6 +1,7 @@
 // In-memory library backed by IndexedDB. Components read `library.*`;
 // all writes go through the methods here so they persist and trigger sync.
 import { defaultSettings } from './constants';
+import { discardCover } from './covers';
 import * as db from './db';
 import { emptyCollections, mergeCollections } from './merge';
 import { deriveStatus, sortReadings, transition } from './reading';
@@ -53,6 +54,29 @@ class Library {
 
   #listeners = new Set<Listener>();
 
+  // Other open tabs of the app (e.g. one opened by a bookmarklet) share their
+  // changes here, so every tab's in-memory copy stays current and can sync it.
+  #channel: BroadcastChannel | null =
+    typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('reading-app-library') : null;
+
+  constructor() {
+    this.#channel?.addEventListener('message', (e: MessageEvent) => {
+      const { name, records, local } = e.data as { name: CollectionName; records: BaseRecord[]; local: boolean };
+      if (!this.loaded || !COLLECTION_NAMES.includes(name)) return;
+      // Already saved to IndexedDB by the other tab: only update memory.
+      this.data = mergeCollections(this.data, { ...emptyCollections(), [name]: records });
+      if (local) this.#emit();
+    });
+  }
+
+  #broadcast(name: CollectionName, records: BaseRecord[], local: boolean) {
+    try {
+      this.#channel?.postMessage({ name, records, local });
+    } catch {
+      /* ignore: another tab will catch up when it next loads */
+    }
+  }
+
   async load(): Promise<void> {
     this.data = await db.loadAll();
     this.loaded = true;
@@ -77,6 +101,7 @@ class Library {
     const next = [...(this.data[name] as BaseRecord[]).filter((r) => !ids.has(r.id)), ...stamped];
     this.data = { ...this.data, [name]: next };
     await db.saveRecords(name, stamped);
+    this.#broadcast(name, stamped, true);
     this.#emit();
   }
 
@@ -108,6 +133,7 @@ class Library {
     this.data = mergeCollections(this.data, remote);
     for (const [name, records] of Object.entries(changed)) {
       await db.saveRecords(name as CollectionName, records);
+      this.#broadcast(name as CollectionName, records, false);
     }
     return count;
   }
@@ -195,6 +221,30 @@ class Library {
   async deleteItem(item: Item): Promise<void> {
     await this.remove('readings', this.readings(item.id));
     await this.remove('items', [item]);
+    await discardCover(item.coverUrl);
+  }
+
+  /** Adds many records at once (imports). */
+  async importRecords(records: Partial<Collections>): Promise<void> {
+    for (const name of COLLECTION_NAMES) {
+      const recs = records[name];
+      if (recs?.length) await this.put(name, recs as never);
+    }
+  }
+
+  /** Existing fic with this AO3 work id. */
+  ficByWorkId(workId: string | undefined): Item | undefined {
+    return workId ? this.items.find((i) => i.fic?.workId === workId) : undefined;
+  }
+
+  /** Existing book with this Goodreads id or ISBN-13. */
+  bookByIds(goodreadsUrl?: string, isbn13?: string): Item | undefined {
+    const gr = goodreadsUrl?.match(/book\/show\/(\d+)/)?.[1];
+    return this.items.find(
+      (i) =>
+        i.type === 'book' &&
+        ((gr && i.book?.goodreadsUrl?.match(/book\/show\/(\d+)/)?.[1] === gr) || (isbn13 && i.book?.isbn13 === isbn13)),
+    );
   }
 
   async setStatus(item: Item, target: Status, date = today()): Promise<void> {

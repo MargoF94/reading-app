@@ -1,6 +1,7 @@
 // Keeps the local library and library.json in the private data repo in step.
 // Strategy: download, merge per record (newest updatedAt wins), upload if
 // anything changed. A write conflict (another device saved first) retries.
+import { syncCovers } from './covers';
 import { getMeta, setMeta } from './db';
 import { GitHubError, getFile, putFile, type SyncConfig } from './github';
 import { emptyCollections, mergeCollections, parseLibraryFile, sameContent, stableStringify, toLibraryFile } from './merge';
@@ -38,7 +39,9 @@ class Sync {
       if (this.config) this.state = 'offline';
     });
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') this.run();
+      // Coming back: fetch changes from other devices. Leaving: save now rather than
+      // after the usual delay, in case the tab is about to be closed.
+      if (document.visibilityState === 'visible' || this.pending) void this.run();
     });
     if (this.config) void this.run();
   }
@@ -95,6 +98,7 @@ class Sync {
           throw e;
         }
       }
+      await syncCovers(cfg);
       this.lastSyncedAt = nowIso();
       await setMeta(LAST_KEY, this.lastSyncedAt);
       this.error = null;

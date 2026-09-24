@@ -7,6 +7,7 @@
   import { sync } from './lib/sync.svelte';
   import { toasts } from './lib/toast.svelte';
   import Home from './pages/Home.svelte';
+  import Import from './pages/Import.svelte';
   import ItemForm from './pages/ItemForm.svelte';
   import ItemPage from './pages/ItemPage.svelte';
   import Library from './pages/Library.svelte';
@@ -42,7 +43,7 @@
   const NAV = [
     { href: '#/', icon: 'home', label: 'Home', match: (s: string[]) => s.length === 0 },
     { href: '#/library', icon: 'library', label: 'Library', match: (s: string[]) => s[0] === 'library' },
-    { href: '#/add', icon: 'plus', label: 'Add', match: (s: string[]) => s[0] === 'add' },
+    { href: '#/add', icon: 'plus', label: 'Add', match: (s: string[]) => s[0] === 'add' || s[0] === 'import' },
     { href: '#/settings', icon: 'settings', label: 'Settings', match: (s: string[]) => s[0] === 'settings' },
   ];
 
@@ -78,13 +79,22 @@
     {:else if seg[0] === 'library'}
       <Library />
     {:else if seg[0] === 'add'}
-      <ItemForm type={router.route.query.get('type') === 'fic' ? 'fic' : 'book'} />
+      {#key router.route.query.get('draft') ?? router.route.query.get('type')}
+        <ItemForm
+          type={router.route.query.get('type') === 'fic' ? 'fic' : 'book'}
+          draftId={router.route.query.get('draft') ?? undefined}
+        />
+      {/key}
     {:else if seg[0] === 'item' && seg[1] && seg[2] === 'edit'}
-      {#key seg[1]}<ItemForm id={seg[1]} />{/key}
+      {#key seg[1] + (router.route.query.get('draft') ?? '')}
+        <ItemForm id={seg[1]} draftId={router.route.query.get('draft') ?? undefined} />
+      {/key}
     {:else if seg[0] === 'item' && seg[1]}
       {#key seg[1]}<ItemPage id={seg[1]} />{/key}
     {:else if seg[0] === 'settings'}
       <Settings />
+    {:else if seg[0] === 'import'}
+      <Import />
     {:else}
       <NotFound />
     {/if}

@@ -3,7 +3,7 @@
 A personal, single-user reading tracker for books, manga, audiobooks and AO3 fanfics.
 Hosted on GitHub Pages. Interface in English; content in English, Russian and Japanese.
 
-Status: **phase 1 (foundation) built** — phases 2–4 to do.
+Status: **phases 1 (foundation) and 2 (importing) built** — phases 3–4 to do.
 
 ---
 
@@ -127,14 +127,19 @@ Source in the page: `dl.work.meta`, `h2.title`, `h3.byline`, `.summary blockquot
 
 | Method | Details |
 |---|---|
-| ISBN | Typed or (later) scanned with the phone camera. Lookup chain: Open Library → Google Books → Japanese source (openBD / NDL Search, verify at build time). Russian coverage is weak → manual fallback. Google Books without a key shares a global daily quota → optional personal key in Settings. |
-| Goodreads URL | The app cannot fetch Goodreads pages (no API since 2020, cross-site requests blocked). (a) **Bookmarklet** run on a Goodreads book page reads its embedded data and opens the app with a pre-filled form; (b) pasting a URL extracts the title from the link and searches by title; (c) Goodreads CSV import for the whole library. |
-| AO3 saved page | Upload a saved AO3 page or AO3's Download → HTML file; parsed in the browser, fills every fic field. |
-| AO3 bookmarklet | Same pre-fill, one click on an AO3 work page. |
+| ISBN / title search | "Find details online" box in the book form: an ISBN is looked up in Google Books + Open Library (+ openBD for 978-4 Japanese ISBNs, best effort: openBD v1 was retired in 2023 and the NDL cover API closed on 2026-03-31). Anything else is a title/author search with results to pick from. Russian coverage is weak → manual fallback. Google Books without a key shares a global daily quota → optional personal key in Settings. |
+| Goodreads URL | The app cannot fetch Goodreads pages (no API since 2020, cross-site requests blocked). (a) **Bookmarklet** run on a Goodreads book page reads its embedded data (Next.js state, JSON-LD fallback) and opens the app with a pre-filled form; (b) pasting a URL in the search box searches by the title in the link and keeps the link; (c) a saved Goodreads page can be imported as a file; (d) Goodreads CSV import for the whole library. |
+| Goodreads CSV | Import page: preview first (shelf → status mapping, custom shelves → tags, language guess by script, optional co-authors), then import. Handles `Title (Series, #n)`, `[Romaji]` readings, Japanese imprint labels, `, Vol. n`, re-read counts, `="ISBN"` fields; names in another script from "Additional Authors" become the author's other name. Re-importing skips books already in the library. |
+| AO3 saved page | Upload a saved AO3 page or AO3's Download → HTML file (fic form or Import page); parsed in the browser, fills every fic field. |
+| AO3 bookmarklet | Same pre-fill, one click on an AO3 work page. The bookmarklet sends only the work's metadata fragments (≈5 KB) in the app URL (`#/import?d=…`); the app parses them with the same parser as files. |
 | AO3 URL only | Stored with work ID; details cannot be fetched automatically. |
 | Manual form | Always available for books, manga, audiobooks and fics. |
 
-WIP fics: re-import the page (upload or bookmarklet) to update words/chapters; the app shows "N new chapters since you stopped".
+WIP fics: re-import the page (upload or bookmarklet); a fic with the same AO3 work id opens in its edit form with the new metadata and a "chapters 3 → 5" note. Home and the fic page show "N new chapters since your last update".
+
+Covers: from lookups (Open Library / Google / openBD), a link, or a photo (resized on the device to ≤400×600 WebP/JPEG, stored as `covers/…` in the data repo and cached locally). Settings and the Goodreads import offer "Find covers" (Open Library by ISBN in batches of 40, then by title + author).
+
+Exchange rates: each priced purchase stores the day's JPY-per-USD rate (Frankfurter/ECB, fallback fawazahmed0 currency API), looked up on save; the rate can be typed in by hand. Prices show "¥1,540 ≈ $10.27" in the display currency.
 
 ## 6. Length and word counts
 
@@ -198,7 +203,7 @@ Responsive: bottom tab bar on phones (Home · Library · ＋ · Stats · More), 
 
 ## 11. Build phases
 
-1. **Foundation**: project setup, GitHub Pages deploy, storage + private-repo sync + JSON export/import, manual add for all types, statuses (incl. on hold), progress + read-throughs, half-star rating + review, library and item pages, publisher/language dropdowns, responsive layout, PWA.
-2. **Importing**: ISBN lookup, AO3 page import, Goodreads CSV import, bookmarklets (Goodreads, AO3), covers, currency conversion.
+1. ✅ **Foundation**: project setup, GitHub Pages deploy, storage + private-repo sync + JSON export/import, manual add for all types, statuses (incl. on hold), progress + read-throughs, half-star rating + review, library and item pages, publisher/language dropdowns, responsive layout, PWA.
+2. ✅ **Importing**: ISBN lookup, AO3 page import, Goodreads CSV import, bookmarklets (Goodreads, AO3), covers, currency conversion.
 3. **Organising & stats**: tags, lists, series/author/fandom pages, dashboard, goals, Year in Books.
 4. **Extras**: barcode scanning, edition linking, WIP update tracking, shareable Year in Books image.

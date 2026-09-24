@@ -43,6 +43,11 @@
   }
 
   const total = $derived(unitTotal(item, unit));
+  const totalHint = $derived.by(() => {
+    if (unit === 'percent' || !total) return '';
+    if (unit === 'chapters' && item.fic?.chaptersTotal === undefined) return ` (${total} posted so far)`;
+    return ` (of ${total})`;
+  });
 
   async function save(e: Event) {
     e.preventDefault();
@@ -91,7 +96,7 @@
       </div>
     {:else}
       <label class="field">
-        <span>{UNIT_LABEL[unit]}{total && unit !== 'percent' ? ` (of ${total})` : ''}</span>
+        <span>{UNIT_LABEL[unit]}{totalHint}</span>
         <!-- svelte-ignore a11y_autofocus -->
         <input inputmode="decimal" bind:value autofocus />
       </label>

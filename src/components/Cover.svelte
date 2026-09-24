@@ -1,18 +1,39 @@
 <script lang="ts">
+  import { coverSrc, isRepoCover } from '../lib/covers';
   import { library } from '../lib/store.svelte';
   import type { Item } from '../lib/types';
   import { hashHue } from '../lib/util';
 
-  let { item, width = 120 }: { item: Item; width?: number } = $props();
+  // `preview` shows an image that isn't saved yet (e.g. a photo picked in the form).
+  let { item, width = 120, preview = undefined }: { item: Item; width?: number; preview?: string } = $props();
 
+  let src = $state<string | null>(null);
   let failed = $state(false);
   const hue = $derived(hashHue(item.fic?.fandoms[0] ?? item.title));
   const author = $derived(library.authorNames(item));
+
+  $effect(() => {
+    const url = preview ?? item.coverUrl;
+    failed = false;
+    src = null;
+    if (!url) return;
+    if (!isRepoCover(url)) {
+      src = url;
+      return;
+    }
+    let cancelled = false;
+    coverSrc(url).then((s) => {
+      if (!cancelled) src = s;
+    });
+    return () => {
+      cancelled = true;
+    };
+  });
 </script>
 
 <div class="cover" style:width="{width}px" style:--hue={hue}>
-  {#if item.coverUrl && !failed}
-    <img src={item.coverUrl} alt="" loading="lazy" onerror={() => (failed = true)} />
+  {#if src && !failed}
+    <img {src} alt="" loading="lazy" onerror={() => (failed = true)} />
   {:else}
     <div class="generated" class:fic={item.type === 'fic'}>
       <span class="title">{item.title}</span>

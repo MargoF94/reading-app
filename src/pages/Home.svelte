@@ -3,7 +3,7 @@
   import ItemCard from '../components/ItemCard.svelte';
   import ProgressBar from '../components/ProgressBar.svelte';
   import ProgressDialog from '../components/ProgressDialog.svelte';
-  import { activeReading, entryLabel, entryPercent, lastFinishDate, latestEntry } from '../lib/reading';
+  import { activeReading, entryLabel, entryPercent, lastFinishDate, latestEntry, unreadChapters } from '../lib/reading';
   import { library } from '../lib/store.svelte';
   import type { Item } from '../lib/types';
   import { formatDate } from '../lib/util';
@@ -11,7 +11,21 @@
   const byStatus = (s: string) => library.items.filter((i) => library.status(i.id) === s);
 
   const reading = $derived(byStatus('currently-reading'));
+  // Most recently active first: last progress update, else start date, else when added.
+  const lastActivity = (item: Item) => {
+    const r = activeReading(library.readings(item.id));
+    return latestEntry(r)?.date ?? r?.startDate ?? item.createdAt.slice(0, 10);
+  };
+  const SHOWN = 6;
+  const readingShown = $derived(
+    [...reading].sort((a, b) => lastActivity(b).localeCompare(lastActivity(a))).slice(0, SHOWN),
+  );
   const onHold = $derived(byStatus('on-hold'));
+  const updated = $derived(
+    [...reading, ...onHold]
+      .map((item) => ({ item, n: unreadChapters(item, library.readings(item.id)) }))
+      .filter((x) => x.n > 0),
+  );
   const recent = $derived(
     library.items
       .filter((i) => library.status(i.id) === 'read')
@@ -65,7 +79,7 @@
       <p class="muted">Nothing in progress. <a href="#/library?status=want-to-read">Pick something to read</a>.</p>
     {:else}
       <div class="current">
-        {#each reading as item (item.id)}
+        {#each readingShown as item (item.id)}
           {@const p = progress(item)}
           <div class="card now">
             <a href="#/item/{item.id}" style="text-decoration:none"><Cover {item} width={72} /></a>
@@ -78,8 +92,25 @@
           </div>
         {/each}
       </div>
+      {#if reading.length > SHOWN}
+        <p><a href="#/library?status=currently-reading">See all {reading.length} books you’re reading</a></p>
+      {/if}
     {/if}
   </section>
+
+  {#if updated.length}
+    <section>
+      <h2>New chapters</h2>
+      <ul class="updates">
+        {#each updated as { item, n } (item.id)}
+          <li>
+            <a href="#/item/{item.id}">{item.title}</a>
+            <span class="chip accent">+{n} {n === 1 ? 'chapter' : 'chapters'}</span>
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
 
   {#if onHold.length}
     <section>
@@ -178,6 +209,22 @@
     color: inherit;
     text-decoration: none;
     overflow-wrap: anywhere;
+  }
+
+  .updates {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .updates li {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
   }
 
   .grid {

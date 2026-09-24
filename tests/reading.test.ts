@@ -103,3 +103,13 @@ describe('progress', () => {
     expect(isComplete(book, { id: 'e', date: '2026-09-01', value: 300, unit: 'pages' })).toBe(true);
   });
 });
+
+describe('ordering', () => {
+  it('treats undated read-throughs as older than dated ones', () => {
+    const base = { itemId: 'b1', unit: 'pages' as const, log: [] };
+    const undated: Reading = { ...base, id: 'u', createdAt: '2026-09-24T00:00:00.000Z', updatedAt: now, outcome: 'finished' };
+    const dnf: Reading = { ...base, id: 'd', createdAt: '2026-09-24T00:00:00.000Z', updatedAt: now, outcome: 'dnf', finishDate: '2022-09-15' };
+    expect(deriveStatus([dnf, undated])).toBe('dnf');
+    expect(deriveStatus([undated, dnf])).toBe('dnf');
+  });
+});

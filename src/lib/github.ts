@@ -99,8 +99,38 @@ export async function putFile(cfg: SyncConfig, text: string, sha: string | undef
   return data.content.sha as string;
 }
 
+/** Downloads any file in the data repo as a Blob; null if it doesn't exist. */
+export async function getBlob(cfg: SyncConfig, path: string): Promise<Blob | null> {
+  const res = await request(cfg, `/contents/${path}`, {}, 'application/vnd.github.raw+json');
+  if (res.status === 404) return null;
+  if (!res.ok) await fail(res, 'Downloading a cover');
+  return res.blob();
+}
+
+/** Creates a new file from raw bytes (base64). */
+export async function putBlob(cfg: SyncConfig, path: string, blob: Blob, message: string): Promise<void> {
+  const res = await request(cfg, `/contents/${path}`, {
+    method: 'PUT',
+    body: JSON.stringify({ message, content: bytesToBase64(new Uint8Array(await blob.arrayBuffer())) }),
+  });
+  // 422 = the file already exists (uploaded earlier from this or another device).
+  if (!res.ok && res.status !== 422) await fail(res, 'Uploading a cover');
+}
+
+export async function deletePath(cfg: SyncConfig, path: string, message: string): Promise<void> {
+  const meta = await request(cfg, `/contents/${path}`);
+  if (meta.status === 404) return;
+  if (!meta.ok) await fail(meta, 'Deleting a cover');
+  const { sha } = await meta.json();
+  const res = await request(cfg, `/contents/${path}`, { method: 'DELETE', body: JSON.stringify({ message, sha }) });
+  if (!res.ok && res.status !== 404) await fail(res, 'Deleting a cover');
+}
+
 export function encodeBase64(text: string): string {
-  const bytes = new TextEncoder().encode(text);
+  return bytesToBase64(new TextEncoder().encode(text));
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
   const chunk = 0x8000;
   for (let i = 0; i < bytes.length; i += chunk) {

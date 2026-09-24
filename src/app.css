@@ -252,8 +252,13 @@ label {
 
 .check {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.5em;
+}
+
+.check input {
+  flex-shrink: 0;
+  margin-top: 0.2em;
 }
 
 .grid-2 {
@@ -264,18 +269,18 @@ label {
 
 @media (min-width: 560px) {
   .grid-2 {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .grid-3 {
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 .grid-3 {
   display: grid;
   gap: 0.9rem;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .row {

@@ -21,6 +21,13 @@ export type Currency = 'JPY' | 'USD';
 
 export type PurchaseSource = 'bought' | 'free' | 'library' | 'gift' | 'subscription';
 
+/** Exchange rates on a given day, as units of each currency per 1 USD. */
+export interface FxSnapshot {
+  date: string; // YYYY-MM-DD the rates are for
+  perUsd: Partial<Record<Currency, number>>;
+  manual?: boolean; // typed in by hand rather than looked up
+}
+
 export interface Purchase {
   id: string;
   date?: string; // YYYY-MM-DD
@@ -29,6 +36,7 @@ export interface Purchase {
   store?: string;
   source: PurchaseSource;
   note?: string;
+  fx?: FxSnapshot;
 }
 
 export type Ao3Rating = 'general' | 'teen' | 'mature' | 'explicit' | 'not-rated';
@@ -62,6 +70,7 @@ export interface BookDetails {
   isbn10?: string;
   publisherId?: string;
   publicationDate?: string; // YYYY, YYYY-MM or YYYY-MM-DD
+  originalPublicationYear?: number;
   format?: BookFormat;
   pageCount?: number;
   durationMinutes?: number; // audiobooks
@@ -158,6 +167,8 @@ export interface Settings extends BaseRecord {
   jaCharsPerWord: number;
   audiobookWordsPerHour: number;
   mangaCountsWords: boolean;
+  /** Optional Google Books API key; unauthenticated requests share a small quota. */
+  googleBooksKey?: string;
 }
 
 /** Collections synced as arrays in library.json. */
