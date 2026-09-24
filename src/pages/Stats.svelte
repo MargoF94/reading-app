@@ -3,11 +3,11 @@
   import ColumnChart, { type ColumnSeries } from '../components/charts/ColumnChart.svelte';
   import StatTile from '../components/charts/StatTile.svelte';
   import GoalsCard from '../components/GoalsCard.svelte';
-  import { compact, computeStats, PRESETS, presetPeriod, type Period, type PresetId } from '../lib/stats';
+  import { bookEquivalentWords, compact, computeStats, PRESETS, presetPeriod, type Period, type PresetId } from '../lib/stats';
   import { router } from '../lib/router.svelte';
   import { library } from '../lib/store.svelte';
   import type { ItemType } from '../lib/types';
-  import { formatMoney, formatNumber, normalize, today } from '../lib/util';
+  import { formatDate, formatMoney, formatNumber, normalize, today } from '../lib/util';
 
   // Filters live in the URL (?p=…&t=…&from=…&to=…) so Back keeps them.
   const q = $derived(router.route.query);
@@ -15,9 +15,12 @@
   const type = $derived<ItemType | undefined>(q.get('t') === 'book' || q.get('t') === 'fic' ? (q.get('t') as ItemType) : undefined);
   const period = $derived<Period>(
     preset === 'custom'
-      ? { from: q.get('from') || undefined, to: q.get('to') || undefined }
+      ? orderRange(q.get('from') || undefined, q.get('to') || undefined)
       : presetPeriod(preset, today()),
   );
+  function orderRange(from?: string, to?: string): Period {
+    return from && to && from > to ? { from: to, to: from } : { from, to };
+  }
   const stats = $derived(computeStats(library.data, library.settings, { period, type, today: today() }));
   const year = new Date().getFullYear();
   const currency = $derived(library.settings.displayCurrency);
@@ -49,8 +52,21 @@
   };
 
   function setPreset(p: PresetId | 'custom') {
-    router.setQuery({ p: p === 'this-year' ? undefined : p });
+    if (p === 'custom') {
+      // Start from the period being viewed, so the dates are never empty.
+      const from = period.from ?? `${year}-01-01`;
+      const to = period.to && period.to < today() ? period.to : today();
+      router.setQuery({ p, from: q.get('from') || from, to: q.get('to') || to });
+    } else router.setQuery({ p: p === 'this-year' ? undefined : p, from: undefined, to: undefined });
   }
+
+  const bookWords = $derived(bookEquivalentWords(library.settings));
+  const ficBooks = $derived(stats.ficWords / bookWords);
+  const periodLabel = $derived(
+    period.from || period.to
+      ? `${period.from ? formatDate(period.from) : 'the start'} – ${period.to ? formatDate(period.to > today() ? today() : period.to) : 'today'}`
+      : 'all time',
+  );
 </script>
 
 <div class="row head">
@@ -66,7 +82,7 @@
       </button>
     {/each}
     <button type="button" class="chip" class:accent={preset === 'custom'} aria-pressed={preset === 'custom'} onclick={() => setPreset('custom')}>
-      Custom
+      Custom dates
     </button>
   </div>
   <select value={type ?? ''} onchange={(e) => router.setQuery({ t: e.currentTarget.value || undefined })} aria-label="Books or fics">
@@ -77,10 +93,11 @@
 </div>
 {#if preset === 'custom'}
   <div class="custom">
-    <label class="field"><span>From</span><input type="date" value={q.get('from') ?? ''} onchange={(e) => router.setQuery({ from: e.currentTarget.value || undefined })} /></label>
-    <label class="field"><span>To</span><input type="date" value={q.get('to') ?? ''} onchange={(e) => router.setQuery({ to: e.currentTarget.value || undefined })} /></label>
+    <label class="field"><span>From</span><input type="date" value={q.get('from') ?? ''} max={q.get('to') ?? undefined} onchange={(e) => router.setQuery({ from: e.currentTarget.value || undefined })} /></label>
+    <label class="field"><span>To</span><input type="date" value={q.get('to') ?? ''} min={q.get('from') ?? undefined} onchange={(e) => router.setQuery({ to: e.currentTarget.value || undefined })} /></label>
   </div>
 {/if}
+<p class="small muted period">Showing {periodLabel}</p>
 
 <GoalsCard {year} />
 
@@ -88,6 +105,13 @@
   {#if type !== 'fic'}<StatTile label="Books finished" value={formatNumber(stats.finishedBooks)} />{/if}
   {#if type !== 'book'}<StatTile label="Fics finished" value={formatNumber(stats.finishedFics)} />{/if}
   <StatTile label="Words read" value={compact(stats.words)} sub={estimatedShare ? `≈ ${estimatedShare}% estimated` : ''} />
+  {#if type !== 'book'}
+    <StatTile
+      label="Fics, in books"
+      value="≈ {ficBooks >= 10 ? Math.round(ficBooks) : ficBooks.toFixed(1)}"
+      sub="{compact(stats.ficWords)} fic words ÷ {compact(bookWords)} per {library.settings.bookEquivalentPages ?? 400}-page book"
+    />
+  {/if}
   {#if type !== 'fic'}<StatTile label="Pages read" value={compact(stats.pages)} />{/if}
   {#if stats.minutes}<StatTile label="Hours listened" value={formatNumber(Math.round(stats.minutes / 60))} />{/if}
   <StatTile label="Average rating" value={stats.avgRating ? stats.avgRating.toFixed(2) : '—'} sub={stats.avgRating ? 'of finished items' : ''} />
@@ -217,6 +241,10 @@
 
   .filters select {
     width: auto;
+  }
+
+  .period {
+    margin: -0.4rem 0 1rem;
   }
 
   .custom {

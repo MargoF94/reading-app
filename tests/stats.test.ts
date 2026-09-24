@@ -153,3 +153,17 @@ describe('series order', () => {
     expect(rows).toEqual(['one', 'half', 'gap2', 'three', 'gap4', 'x']);
   });
 });
+
+describe('fics in books', () => {
+  it('counts fic words separately and converts them to books', async () => {
+    const { bookEquivalentWords } = await import('../src/lib/stats');
+    const data = emptyCollections();
+    data.items = [fic('f', 220000), book('b', {}, { pageCount: 100 })];
+    data.readings = [reading('f', { finishDate: '2026-03-01' }), reading('b', { finishDate: '2026-03-02' })];
+    const s = computeStats(data, settings, { period: presetPeriod('this-year', '2026-06-01'), today: '2026-06-01' });
+    expect(s.ficWords).toBe(220000);
+    expect(bookEquivalentWords(settings)).toBe(110000);
+    expect(s.ficWords / bookEquivalentWords(settings)).toBe(2);
+    expect(bookEquivalentWords({ ...settings, bookEquivalentPages: 300 })).toBe(82500);
+  });
+});

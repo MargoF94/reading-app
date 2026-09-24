@@ -150,6 +150,7 @@ export interface Stats {
   pages: number;
   words: number;
   wordsEstimated: number;
+  ficWords: number;
   minutes: number;
   avgRating?: number;
   ratings: { value: number; count: number }[];
@@ -242,6 +243,7 @@ export function computeStats(data: Collections, settings: Settings, opts: StatsO
     pages: 0,
     words: 0,
     wordsEstimated: 0,
+    ficWords: 0,
     minutes: 0,
     ratings: [],
     buckets,
@@ -274,6 +276,7 @@ export function computeStats(data: Collections, settings: Settings, opts: StatsO
       const words = (len.words ?? 0) * p.fraction;
       stats.pages += pages;
       stats.words += words;
+      if (item.type === 'fic') stats.ficWords += words;
       if (len.wordsEstimated) stats.wordsEstimated += words;
       stats.minutes += (len.minutes ?? 0) * p.fraction;
       const b = bucketOf(p.date);
@@ -366,6 +369,11 @@ export function computeStats(data: Collections, settings: Settings, opts: StatsO
     }
   }
   return stats;
+}
+
+/** Words in one "average published book": pages × English words per page. */
+export function bookEquivalentWords(settings: Settings): number {
+  return (settings.bookEquivalentPages ?? 400) * (settings.wordsPerPage.en ?? 275);
 }
 
 // ---- goals ------------------------------------------------------------------------

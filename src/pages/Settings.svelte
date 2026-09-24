@@ -233,6 +233,17 @@
       Japanese word counts (from AO3, or typed in) are character counts; they are divided by the number above to compare
       with English and Russian. Other languages use the English words-per-page value.
     </p>
+    <label class="field" style="max-width:20rem">
+      <span>Pages in an “average book” (for fics in books)</span>
+      <input
+        inputmode="numeric"
+        value={library.settings.bookEquivalentPages ?? 400}
+        onchange={(e) => {
+          const n = Number(e.currentTarget.value);
+          if (n > 0) library.saveSettings({ bookEquivalentPages: Math.round(n) });
+        }}
+      />
+    </label>
     <label class="check">
       <input
         type="checkbox"

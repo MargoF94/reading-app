@@ -169,6 +169,8 @@ export interface Settings extends BaseRecord {
   jaCharsPerWord: number;
   audiobookWordsPerHour: number;
   mangaCountsWords: boolean;
+  /** Length of the "average book" fics are compared with (pages). */
+  bookEquivalentPages?: number;
   /** Optional Google Books API key; unauthenticated requests share a small quota. */
   googleBooksKey?: string;
 }

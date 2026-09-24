@@ -4,7 +4,7 @@
   import StatTile from '../components/charts/StatTile.svelte';
   import Cover from '../components/Cover.svelte';
   import Icon from '../components/Icon.svelte';
-  import { compact, computeStats } from '../lib/stats';
+  import { bookEquivalentWords, compact, computeStats } from '../lib/stats';
   import { router } from '../lib/router.svelte';
   import { library } from '../lib/store.svelte';
   import { toasts } from '../lib/toast.svelte';
@@ -92,6 +92,13 @@
     <StatTile label="Fics" value={formatNumber(stats.finishedFics)} />
     <StatTile label="Pages" value={compact(stats.pages)} />
     <StatTile label="Words" value={compact(stats.words)} />
+    {#if stats.ficWords}
+      <StatTile
+        label="Fics, in books"
+        value="≈ {Math.round(stats.ficWords / bookEquivalentWords(library.settings))}"
+        sub="{compact(stats.ficWords)} words of fic"
+      />
+    {/if}
     {#if stats.minutes}<StatTile label="Hours listened" value={formatNumber(Math.round(stats.minutes / 60))} />{/if}
     <StatTile label="Average rating" value={stats.avgRating ? stats.avgRating.toFixed(2) : '—'} />
     {#if stats.spent.total}<StatTile label="Spent" value={formatMoney(stats.spent.total, currency)} />{/if}
