@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { MUSIC_STORES, musicStore } from '../lib/appleMusic';
   import CoverFinder from '../components/CoverFinder.svelte';
   import ManageNames from '../components/ManageNames.svelte';
   import { needsRates, withRates } from '../lib/fx';
@@ -180,6 +181,16 @@
         >
           {#each CURRENCIES as c (c.value)}<option value={c.value}>{c.symbol} {c.label}</option>{/each}
         </select>
+      </label>
+      <label class="field">
+        <span>Apple Music region</span>
+        <select
+          value={musicStore(library.settings)}
+          onchange={(e) => library.saveSettings({ musicStore: e.currentTarget.value })}
+        >
+          {#each MUSIC_STORES as m (m.value)}<option value={m.value}>{m.label}</option>{/each}
+        </select>
+        <span class="small muted">Where songs are looked up and opened. Use the country of your Apple account.</span>
       </label>
     </div>
   </section>

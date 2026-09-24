@@ -87,6 +87,7 @@ export interface Song {
   title: string;
   artist?: string;
   url?: string; // http(s) link to listen
+  artwork?: string; // album art from Apple Music
   note?: string;
 }
 
@@ -183,6 +184,8 @@ export interface Settings extends BaseRecord {
   mangaCountsWords: boolean;
   /** Length of the "average book" fics are compared with (pages). */
   bookEquivalentPages?: number;
+  /** Apple Music storefront for song links, e.g. "us", "jp" (default: the device's region). */
+  musicStore?: string;
   /** Optional Google Books API key; unauthenticated requests share a small quota. */
   googleBooksKey?: string;
 }
