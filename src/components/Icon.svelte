@@ -23,6 +23,10 @@
     download: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3',
     upload: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12',
     book: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15zM4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5',
+    up: 'M18 15l-6-6-6 6',
+    grip: 'M9 5.5h.01M15 5.5h.01M9 12h.01M15 12h.01M9 18.5h.01M15 18.5h.01',
+    chart: 'M3 21h18M6 17v-6M11 17V7M16 17v-9M20 17v-4',
+    target: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 12h.01',
   };
 </script>
 
@@ -43,5 +47,5 @@
   role={label ? 'img' : undefined}
   aria-label={label}
 >
-  <path d={PATHS[name]} />
+  <path d={PATHS[name]} stroke-width={name === 'grip' ? 3 : undefined} />
 </svg>

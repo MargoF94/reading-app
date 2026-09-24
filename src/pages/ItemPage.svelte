@@ -1,5 +1,8 @@
 <script lang="ts">
   import Cover from '../components/Cover.svelte';
+  import CoverDialog from '../components/CoverDialog.svelte';
+  import ItemLists from '../components/ItemLists.svelte';
+  import ReadingDates from '../components/ReadingDates.svelte';
   import Icon from '../components/Icon.svelte';
   import ProgressBar from '../components/ProgressBar.svelte';
   import ProgressDialog from '../components/ProgressDialog.svelte';
@@ -26,6 +29,13 @@
   const descLong = $derived((item?.description?.length ?? 0) > 450);
 
   let showProgress = $state(false);
+  let showCover = $state(false);
+  const ficKind: Record<string, string> = {
+    Fandoms: 'fandoms',
+    Relationships: 'relationships',
+    Characters: 'characters',
+    'Additional tags': 'fictags',
+  };
   let descOpen = $state(false);
   let spoilerShown = $state(false);
 
@@ -65,14 +75,14 @@
 
   const details = $derived.by(() => {
     if (!item) return [];
-    const rows: [string, string][] = [];
+    const rows: [string, string, string?][] = [];
     const b = item.book;
     const f = item.fic;
     if (b?.format) rows.push(['Format', FORMAT_LABEL[b.format]]);
     if (b?.pageCount) rows.push(['Pages', formatNumber(b.pageCount)]);
     if (b?.durationMinutes) rows.push(['Length', formatMinutes(b.durationMinutes)]);
     if (b?.narrator) rows.push(['Narrator', b.narrator]);
-    if (b?.publisherId) rows.push(['Publisher', library.name('publishers', b.publisherId)]);
+    if (b?.publisherId) rows.push(['Publisher', library.name('publishers', b.publisherId), `#/browse/publishers/${b.publisherId}`]);
     if (b?.publicationDate) rows.push(['Published', formatDate(b.publicationDate)]);
     if (b?.originalPublicationYear && String(b.originalPublicationYear) !== b.publicationDate?.slice(0, 4))
       rows.push(['First published', String(b.originalPublicationYear)]);
@@ -124,16 +134,25 @@
   </div>
 
   <div class="hero">
-    <div class="cover-col"><Cover {item} width={180} /></div>
+    <div class="cover-col">
+      <button type="button" class="cover-btn" onclick={() => (showCover = true)} aria-label="Change cover">
+        <Cover {item} width={180} />
+        <span class="cover-hint"><Icon name="edit" size={14} /> Change cover</span>
+      </button>
+    </div>
     <div class="main-col">
       <h1>{item.title}</h1>
       {#if item.originalTitle || item.titleReading}
         <p class="muted alt">{[item.originalTitle, item.titleReading].filter(Boolean).join(' · ')}</p>
       {/if}
-      <p class="by">by {library.authorNames(item) || 'Unknown author'}</p>
+      <p class="by">
+        by
+        {#each item.authorIds as aid, i (aid)}{#if i > 0},
+          {/if}<a href="#/browse/authors/{aid}">{library.name('authors', aid)}</a>{:else}Unknown author{/each}
+      </p>
       {#if item.seriesId}
-        <p class="small muted">
-          {library.name('series', item.seriesId)}{item.seriesNumber ? ` #${item.seriesNumber}` : ''}
+        <p class="small">
+          <a href="#/browse/series/{item.seriesId}">{library.name('series', item.seriesId)}{item.seriesNumber ? ` #${item.seriesNumber}` : ''}</a>
         </p>
       {/if}
 
@@ -156,6 +175,8 @@
         </div>
       {/if}
 
+      <div class="dates-row"><ReadingDates {item} /></div>
+
       <div class="rating">
         <span class="label">My rating</span>
         <StarRating value={item.rating} onchange={rate} size={28} />
@@ -163,8 +184,8 @@
 
       {#if item.genreIds.length || item.tagIds.length}
         <div class="chips">
-          {#each library.names('genres', item.genreIds) as g (g)}<span class="chip accent">{g}</span>{/each}
-          {#each library.names('tags', item.tagIds) as t (t)}<span class="chip">#{t}</span>{/each}
+          {#each item.genreIds as g (g)}<a class="chip accent" href="#/browse/genres/{g}">{library.name('genres', g)}</a>{/each}
+          {#each item.tagIds as t (t)}<a class="chip" href="#/browse/tags/{t}">#{library.name('tags', t)}</a>{/each}
         </div>
       {/if}
 
@@ -214,6 +235,8 @@
 
       <ReadingHistory {item} />
 
+      <ItemLists {item} />
+
       {#if item.notes}
         <section>
           <h2>Notes</h2>
@@ -227,9 +250,9 @@
         <section class="card">
           <h2>Details</h2>
           <dl>
-            {#each details as [k, v] (k)}
+            {#each details as [k, v, href] (k)}
               <dt>{k}</dt>
-              <dd>{v}</dd>
+              <dd>{#if href}<a href={href}>{v}</a>{:else}{v}{/if}</dd>
             {/each}
           </dl>
         </section>
@@ -241,7 +264,13 @@
           {#each ficTagGroups as [label, values] (label)}
             <div class="tag-group">
               <span class="label">{label}</span>
-              <div class="chips">{#each values as v (v)}<span class="chip">{v}</span>{/each}</div>
+              <div class="chips">
+                {#each values as v (v)}
+                  {#if ficKind[label]}
+                    <a class="chip" href="#/browse/{ficKind[label]}/{encodeURIComponent(v)}">{v}</a>
+                  {:else}<span class="chip">{v}</span>{/if}
+                {/each}
+              </div>
             </div>
           {/each}
         </section>
@@ -265,6 +294,8 @@
       {/if}
     </aside>
   </div>
+
+  <CoverDialog {item} open={showCover} onclose={() => (showCover = false)} />
 
   {#if showProgress}
     <ProgressDialog {item} open={showProgress} onclose={() => (showProgress = false)} />
@@ -318,6 +349,47 @@
   .progress {
     width: 100%;
     max-width: 360px;
+  }
+
+  .cover-btn {
+    position: relative;
+    padding: 0;
+    border: none;
+    background: none;
+    display: block;
+    border-radius: 4px;
+  }
+
+  .cover-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 8px;
+    translate: -50% 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3em;
+    white-space: nowrap;
+    font-size: 0.75rem;
+    padding: 0.2em 0.6em;
+    border-radius: 999px;
+    background: rgb(15 18 21 / 0.72);
+    color: #eef1f3;
+    opacity: 0.9;
+  }
+
+  .cover-btn:hover .cover-hint,
+  .cover-btn:focus-visible .cover-hint {
+    opacity: 1;
+    background: rgb(15 18 21 / 0.88);
+  }
+
+  .dates-row {
+    width: 100%;
+    margin-top: 0.2rem;
+  }
+
+  .by a {
+    color: inherit;
   }
 
   .new-chapters {

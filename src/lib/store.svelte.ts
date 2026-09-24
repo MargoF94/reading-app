@@ -9,11 +9,13 @@ import { COLLECTION_NAMES } from './types';
 import type {
   Author,
   BaseRecord,
+  Goal,
   CollectionName,
   Collections,
   Item,
   NamedRecord,
   Reading,
+  ReadingList,
   Settings,
   Status,
 } from './types';
@@ -47,6 +49,10 @@ class Library {
     for (const item of this.items) map.set(item.id, deriveStatus(this.readingsByItem.get(item.id) ?? []));
     return map;
   });
+
+  lists = $derived(
+    this.data.lists.filter((l) => !l.deleted).sort((a, b) => collator.compare(a.name, b.name)),
+  );
 
   settings = $derived<Settings>(
     this.data.settings.find((s) => s.id === 'settings' && !s.deleted) ?? defaultSettings(''),
@@ -96,7 +102,8 @@ class Library {
   async put<K extends CollectionName>(name: K, records: Collections[K][number][]): Promise<void> {
     if (records.length === 0) return;
     const now = nowIso();
-    const stamped = records.map((r) => ({ ...r, createdAt: r.createdAt || now, updatedAt: now }));
+    // Snapshot: records may contain reactive proxies, which IndexedDB cannot store.
+    const stamped = records.map((r) => ({ ...$state.snapshot(r), createdAt: r.createdAt || now, updatedAt: now }));
     const ids = new Set(stamped.map((r) => r.id));
     const next = [...(this.data[name] as BaseRecord[]).filter((r) => !ids.has(r.id)), ...stamped];
     this.data = { ...this.data, [name]: next };
@@ -259,6 +266,48 @@ class Library {
 
   async deleteReading(reading: Reading): Promise<void> {
     await this.remove('readings', [reading]);
+  }
+
+  // ---- lists ------------------------------------------------------------
+
+  list(id: string): ReadingList | undefined {
+    return this.lists.find((l) => l.id === id);
+  }
+
+  listsContaining(itemId: string): ReadingList[] {
+    return this.lists.filter((l) => l.entries.some((e) => e.itemId === itemId));
+  }
+
+  async createList(name: string, description?: string): Promise<ReadingList> {
+    const now = nowIso();
+    const list: ReadingList = { id: newId(), createdAt: now, updatedAt: now, name: name.trim(), description, entries: [] };
+    await this.put('lists', [list]);
+    return list;
+  }
+
+  async saveList(list: ReadingList): Promise<void> {
+    await this.put('lists', [list]);
+  }
+
+  async addToList(list: ReadingList, itemId: string): Promise<void> {
+    if (list.entries.some((e) => e.itemId === itemId)) return;
+    await this.put('lists', [{ ...list, entries: [...list.entries, { itemId }] }]);
+  }
+
+  async removeFromList(list: ReadingList, itemId: string): Promise<void> {
+    await this.put('lists', [{ ...list, entries: list.entries.filter((e) => e.itemId !== itemId) }]);
+  }
+
+  // ---- goals --------------------------------------------------------------
+
+  goal(year: number): Goal | undefined {
+    return this.data.goals.find((g) => g.year === year && !g.deleted);
+  }
+
+  async saveGoal(year: number, patch: Partial<Pick<Goal, 'books' | 'fics'>>): Promise<void> {
+    const now = nowIso();
+    const current = this.goal(year) ?? { id: `goal-${year}`, createdAt: now, updatedAt: now, year };
+    await this.put('goals', [{ ...current, ...patch }]);
   }
 
   async saveSettings(patch: Partial<Settings>): Promise<void> {

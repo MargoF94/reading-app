@@ -3,7 +3,7 @@
 A personal, single-user reading tracker for books, manga, audiobooks and AO3 fanfics.
 Hosted on GitHub Pages. Interface in English; content in English, Russian and Japanese.
 
-Status: **phases 1 (foundation) and 2 (importing) built** — phases 3–4 to do.
+Status: **phases 1–3 built** (foundation, importing, organising & stats) — phase 4 to do.
 
 ---
 
@@ -186,7 +186,11 @@ Responsive: bottom tab bar on phones (Home · Library · ＋ · Stats · More), 
 - Goal pace for books and fics ("3 ahead")
 - Pages/words are assigned to dates from the progress log (a book read Dec–Jan splits across years); if no log, all at the finish date. DNF counts only what was read.
 
-**Year in Books**: cover wall, totals, shortest/longest, top rated, money spent, top fandoms; downloadable as an image.
+**Year in Books**: cover wall, totals, shortest/longest, top rated, money spent, top fandoms. (Downloadable image: phase 4.)
+
+Built as: a **Stats** tab (one filter row: This year / Last year / Last 12 months / This month / All time / Custom, and Books & fics / Books / Fics) with stat tiles, thin-column charts (finished — books and fics stacked with a legend —, words, pages, spending, ratings), labelled bar lists (genres, fandoms, authors, languages, formats, publishers) and a table view under every chart. Chart colours are validated for colour-blind separation and contrast in both themes (light `#35679f` / `#a8653a`, dark `#5f8fcb` / `#c27c48`). Goals: separate yearly book and fic targets plus their total, with pace, on Home and Stats. Undated reads (e.g. from the Goodreads import) count only in All time.
+
+Browse: Library has a row of links to Lists, Series (reading order with gaps once the series length is set), Authors (with other-script names), Genres, Tags, Fandoms, Relationships, Characters, AO3 tags and Publishers; every name on a book/fic page links there. Lists are ordered (drag, or up/down buttons) with a note per entry; add to a list from the book/fic page.
 
 ## 10. Not possible / changed
 
@@ -206,5 +210,7 @@ Responsive: bottom tab bar on phones (Home · Library · ＋ · Stats · More), 
 
 1. ✅ **Foundation**: project setup, GitHub Pages deploy, storage + private-repo sync + JSON export/import, manual add for all types, statuses (incl. on hold), progress + read-throughs, half-star rating + review, library and item pages, publisher/language dropdowns, responsive layout, PWA.
 2. ✅ **Importing**: ISBN lookup, AO3 page import, Goodreads CSV import, bookmarklets (Goodreads, AO3), covers, currency conversion.
-3. **Organising & stats**: tags, lists, series/author/fandom pages, dashboard, goals, Year in Books.
+3. ✅ **Organising & stats**: tags, lists, series/author/fandom pages, dashboard, goals, Year in Books.
+   Also: change a cover from the book/fic page (photo, link, covers found online, remove); edit the
+   current read's start/finish dates in place on that page; a somber ink/slate colour palette.
 4. **Extras**: barcode scanning, edition linking, WIP update tracking, shareable Year in Books image.

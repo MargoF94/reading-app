@@ -1,5 +1,6 @@
 <script lang="ts">
   import Cover from '../components/Cover.svelte';
+  import GoalsCard from '../components/GoalsCard.svelte';
   import ItemCard from '../components/ItemCard.svelte';
   import ProgressBar from '../components/ProgressBar.svelte';
   import ProgressDialog from '../components/ProgressDialog.svelte';
@@ -73,6 +74,8 @@
     <a class="stat" href="#/library?status=want-to-read"><strong>{wantCount}</strong><span>want to read</span></a>
   </div>
 
+  <div class="goals"><GoalsCard year={year} compact /></div>
+
   <section>
     <h2>Currently reading</h2>
     {#if reading.length === 0}
@@ -143,6 +146,10 @@
 <style>
   section {
     margin-top: 1.75rem;
+  }
+
+  .goals {
+    margin-top: 1rem;
   }
 
   .stats {

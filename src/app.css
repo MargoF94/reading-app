@@ -1,19 +1,29 @@
 /* ---------- tokens ---------- */
+/* Somber ink/slate palette. Dark values are their own steps, not an inversion. */
 :root {
-  --bg: #f7f4ef;
-  --surface: #ffffff;
-  --surface-2: #f0ebe3;
-  --border: #e2dace;
-  --text: #2a2522;
-  --text-2: #6b625b;
-  --accent: #8a3f2c;
-  --accent-contrast: #ffffff;
-  --accent-soft: #f3e3dc;
-  --star: #d99a1e;
-  --ok: #2f7a4f;
-  --warn: #a4640b;
-  --danger: #b3261e;
-  --shadow: 0 1px 2px rgb(40 30 20 / 0.06), 0 2px 8px rgb(40 30 20 / 0.06);
+  --bg: #e8e9ea;
+  --surface: #f6f6f5;
+  --surface-2: #e4e5e6;
+  --border: #cfd2d5;
+  --text: #1d2227;
+  --text-2: #59626a;
+  --accent: #3d5467;
+  --accent-contrast: #f6f6f5;
+  --accent-soft: #dde3e8;
+  --star: #94773a;
+  --ok: #3e6b50;
+  --warn: #80622a;
+  --danger: #9b3c3c;
+  --shadow: 0 1px 2px rgb(20 26 32 / 0.06), 0 2px 8px rgb(20 26 32 / 0.06);
+  /* charts (validated: categorical checks + contrast vs --surface) */
+  --series-1: #35679f;
+  --series-2: #a8653a;
+  --chart-grid: #e1e3e4;
+  --chart-axis: #c3c7ca;
+  --chart-ink-muted: #656d74;
+  --cover-l1: 34%;
+  --cover-l2: 24%;
+  --cover-s: 16%;
   --radius: 10px;
   --radius-sm: 6px;
   --nav-h: 60px;
@@ -26,39 +36,55 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #171412;
-    --surface: #221e1b;
-    --surface-2: #2c2723;
-    --border: #3a342f;
-    --text: #eee8e2;
-    --text-2: #a89e95;
-    --accent: #e39a7f;
-    --accent-contrast: #1d1411;
-    --accent-soft: #3b2a24;
-    --star: #f0b43c;
-    --ok: #6cc18f;
-    --warn: #e7a94a;
-    --danger: #f2887f;
-    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 2px 8px rgb(0 0 0 / 0.3);
+    --bg: #111315;
+    --surface: #191c1f;
+    --surface-2: #22262a;
+    --border: #30353a;
+    --text: #dde2e6;
+    --text-2: #97a0a8;
+    --accent: #9fb4c6;
+    --accent-contrast: #111315;
+    --accent-soft: #263039;
+    --star: #c4a661;
+    --ok: #86b69a;
+    --warn: #cfaa62;
+    --danger: #dc8f8f;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 2px 8px rgb(0 0 0 / 0.35);
+    --series-1: #5f8fcb;
+    --series-2: #c27c48;
+    --chart-grid: #262a2e;
+    --chart-axis: #3a4046;
+    --chart-ink-muted: #838c94;
+    --cover-l1: 30%;
+    --cover-l2: 20%;
+    --cover-s: 14%;
     color-scheme: dark;
   }
 }
 
 :root[data-theme='dark'] {
-  --bg: #171412;
-  --surface: #221e1b;
-  --surface-2: #2c2723;
-  --border: #3a342f;
-  --text: #eee8e2;
-  --text-2: #a89e95;
-  --accent: #e39a7f;
-  --accent-contrast: #1d1411;
-  --accent-soft: #3b2a24;
-  --star: #f0b43c;
-  --ok: #6cc18f;
-  --warn: #e7a94a;
-  --danger: #f2887f;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 2px 8px rgb(0 0 0 / 0.3);
+  --bg: #111315;
+  --surface: #191c1f;
+  --surface-2: #22262a;
+  --border: #30353a;
+  --text: #dde2e6;
+  --text-2: #97a0a8;
+  --accent: #9fb4c6;
+  --accent-contrast: #111315;
+  --accent-soft: #263039;
+  --star: #c4a661;
+  --ok: #86b69a;
+  --warn: #cfaa62;
+  --danger: #dc8f8f;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 2px 8px rgb(0 0 0 / 0.35);
+  --series-1: #5f8fcb;
+  --series-2: #c27c48;
+  --chart-grid: #262a2e;
+  --chart-axis: #3a4046;
+  --chart-ink-muted: #838c94;
+  --cover-l1: 30%;
+  --cover-l2: 20%;
+  --cover-s: 14%;
   color-scheme: dark;
 }
 

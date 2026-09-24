@@ -70,8 +70,8 @@
     justify-content: space-between;
     gap: 0.3em;
     padding: 9cqw;
-    background: linear-gradient(160deg, hsl(var(--hue) 38% 42%), hsl(calc(var(--hue) + 30) 42% 28%));
-    color: #fff;
+    background: linear-gradient(160deg, hsl(var(--hue) var(--cover-s) var(--cover-l1)), hsl(calc(var(--hue) + 25) calc(var(--cover-s) + 4%) var(--cover-l2)));
+    color: #eef1f3;
     font-family: var(--font-serif);
     overflow: hidden;
   }

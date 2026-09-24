@@ -14,6 +14,8 @@ See [PLAN.md](PLAN.md) for the full plan and roadmap.
 3. On a phone, use the browser's "Add to Home Screen" to install it as an app.
 4. **Import** (Add → Import): bring in a Goodreads library export (CSV), an AO3 fic (EPUB or HTML download, or saved page), a saved
    Goodreads page, or install the one-click bookmarklets for AO3 and Goodreads.
+5. **Stats** shows totals and charts for any period, yearly goals and your Year in Books;
+   **Library** links to lists, series, authors, genres, tags, fandoms and publishers.
 
 ## Development
 

@@ -571,7 +571,7 @@
         </label>
       </div>
       <label class="field">
-        <span>Word count (optional)</span>
+        <span>Word count (optional{language === 'ja' ? '; for Japanese, the character count' : ''})</span>
         <input bind:value={wordCount} inputmode="numeric" aria-invalid={!!errors.wordCount} />
         {#if errors.wordCount}<span class="error">{errors.wordCount}</span>{/if}
       </label>

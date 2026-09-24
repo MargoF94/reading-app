@@ -6,7 +6,14 @@
   import { library } from './lib/store.svelte';
   import { sync } from './lib/sync.svelte';
   import { toasts } from './lib/toast.svelte';
+  import BrowseDetail from './pages/BrowseDetail.svelte';
+  import BrowseIndex from './pages/BrowseIndex.svelte';
   import Home from './pages/Home.svelte';
+  import ListPage from './pages/ListPage.svelte';
+  import ListsPage from './pages/ListsPage.svelte';
+  import Stats from './pages/Stats.svelte';
+  import YearInBooks from './pages/YearInBooks.svelte';
+  import { kindInfo, type BrowseKind } from './lib/browse';
   import Import from './pages/Import.svelte';
   import ItemForm from './pages/ItemForm.svelte';
   import ItemPage from './pages/ItemPage.svelte';
@@ -42,8 +49,14 @@
 
   const NAV = [
     { href: '#/', icon: 'home', label: 'Home', match: (s: string[]) => s.length === 0 },
-    { href: '#/library', icon: 'library', label: 'Library', match: (s: string[]) => s[0] === 'library' },
+    {
+      href: '#/library',
+      icon: 'library',
+      label: 'Library',
+      match: (s: string[]) => ['library', 'browse', 'lists', 'list'].includes(s[0]),
+    },
     { href: '#/add', icon: 'plus', label: 'Add', match: (s: string[]) => s[0] === 'add' || s[0] === 'import' },
+    { href: '#/stats', icon: 'chart', label: 'Stats', match: (s: string[]) => s[0] === 'stats' },
     { href: '#/settings', icon: 'settings', label: 'Settings', match: (s: string[]) => s[0] === 'settings' },
   ];
 
@@ -95,6 +108,18 @@
       <Settings />
     {:else if seg[0] === 'import'}
       <Import />
+    {:else if seg[0] === 'browse' && kindInfo(seg[1]) && seg[2] !== undefined}
+      {#key seg[1] + '/' + seg[2]}<BrowseDetail kind={seg[1] as BrowseKind} key={seg[2]} />{/key}
+    {:else if seg[0] === 'browse' && kindInfo(seg[1])}
+      {#key seg[1]}<BrowseIndex kind={seg[1] as BrowseKind} />{/key}
+    {:else if seg[0] === 'lists'}
+      <ListsPage />
+    {:else if seg[0] === 'list' && seg[1]}
+      {#key seg[1]}<ListPage id={seg[1]} />{/key}
+    {:else if seg[0] === 'stats' && seg[1] === 'year'}
+      {#key seg[2]}<YearInBooks year={Number(seg[2]) || new Date().getFullYear()} />{/key}
+    {:else if seg[0] === 'stats'}
+      <Stats />
     {:else}
       <NotFound />
     {/if}

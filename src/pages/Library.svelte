@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BrowseNav from '../components/BrowseNav.svelte';
   import Icon from '../components/Icon.svelte';
   import ItemCard from '../components/ItemCard.svelte';
   import { FORMATS, LANGUAGE_NAME, STATUSES } from '../lib/constants';
@@ -95,6 +96,8 @@
   <h1>Library</h1>
   <span class="muted small">{plural(results.length, 'item')}</span>
 </div>
+
+<BrowseNav current="library" />
 
 <div class="toolbar">
   <label class="search">

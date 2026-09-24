@@ -185,6 +185,65 @@
   </section>
 
   <section class="card stack">
+    <h2>Length estimates</h2>
+    <p class="small muted" style="margin:0">
+      Word totals in Stats use real word counts where known (AO3 fics, or a count you enter). Otherwise they are
+      estimated from pages, or from listening time for audiobooks.
+    </p>
+    <div class="grid-3">
+      {#each [['en', 'English'], ['ru', 'Russian'], ['ja', 'Japanese']] as [code, label] (code)}
+        <label class="field">
+          <span>Words per page · {label}</span>
+          <input
+            inputmode="numeric"
+            value={library.settings.wordsPerPage[code] ?? ''}
+            onchange={(e) => {
+              const n = Number(e.currentTarget.value);
+              if (n > 0) library.saveSettings({ wordsPerPage: { ...library.settings.wordsPerPage, [code]: n } });
+            }}
+          />
+        </label>
+      {/each}
+    </div>
+    <div class="grid-2">
+      <label class="field">
+        <span>Japanese characters per word</span>
+        <input
+          inputmode="decimal"
+          value={library.settings.jaCharsPerWord}
+          onchange={(e) => {
+            const n = Number(e.currentTarget.value);
+            if (n > 0) library.saveSettings({ jaCharsPerWord: n });
+          }}
+        />
+      </label>
+      <label class="field">
+        <span>Audiobook words per hour</span>
+        <input
+          inputmode="numeric"
+          value={library.settings.audiobookWordsPerHour}
+          onchange={(e) => {
+            const n = Number(e.currentTarget.value);
+            if (n > 0) library.saveSettings({ audiobookWordsPerHour: n });
+          }}
+        />
+      </label>
+    </div>
+    <p class="small muted" style="margin:0">
+      Japanese word counts (from AO3, or typed in) are character counts; they are divided by the number above to compare
+      with English and Russian. Other languages use the English words-per-page value.
+    </p>
+    <label class="check">
+      <input
+        type="checkbox"
+        checked={library.settings.mangaCountsWords}
+        onchange={(e) => library.saveSettings({ mangaCountsWords: e.currentTarget.checked })}
+      />
+      Count manga in word totals (pages always count)
+    </label>
+  </section>
+
+  <section class="card stack">
     <h2>Book lookups</h2>
     <p class="small muted" style="margin:0">
       Searching by ISBN or title uses Open Library and Google Books. Google’s free shared limit sometimes runs out; a
