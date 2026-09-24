@@ -81,7 +81,10 @@
       <a href="#/library">Open your library</a>
     </p>
     <h3 style="margin:0.5rem 0 0">Covers</h3>
-    <p class="small muted" style="margin:0">Goodreads exports don’t include covers. The app can look them up:</p>
+    <p class="small muted" style="margin:0">
+      Goodreads exports don’t include covers, descriptions or genres.
+      <a href="#/import/goodreads-update">Get them from Goodreads</a> for all these books, or just look up covers here:
+    </p>
     <CoverFinder itemIds={importedIds} />
   {:else if !parsed}
     <p class="small" style="margin:0">

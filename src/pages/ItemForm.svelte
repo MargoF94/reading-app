@@ -337,6 +337,7 @@
           isbn13: i13 || undefined,
           isbn10: i10 || undefined,
           goodreadsUrl: goodreadsUrl.trim() || undefined,
+          goodreadsCheckedAt: existing?.book?.goodreadsCheckedAt,
           purchases: finalPurchases,
         };
       } else {

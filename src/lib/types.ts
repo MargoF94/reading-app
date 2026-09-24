@@ -76,6 +76,8 @@ export interface BookDetails {
   durationMinutes?: number; // audiobooks
   narrator?: string;
   goodreadsUrl?: string;
+  /** When missing details were last fetched from the book's Goodreads page (YYYY-MM-DD). */
+  goodreadsCheckedAt?: string;
   purchases: Purchase[];
 }
 

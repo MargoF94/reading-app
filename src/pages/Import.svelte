@@ -79,6 +79,15 @@
   <GoodreadsImport />
 
   <section class="card stack">
+    <h2>Update books from Goodreads</h2>
+    <p class="small" style="margin:0">
+      Fill in covers, descriptions, genres and other missing details for all your books with a Goodreads link — for
+      example everything from your Goodreads export — in one go.
+    </p>
+    <div><a class="btn" href="#/import/goodreads-update"><Icon name="download" size={18} /> Update from Goodreads</a></div>
+  </section>
+
+  <section class="card stack">
     <h2>A fic or book file</h2>
     <p class="small" style="margin:0">
       An AO3 fic (AO3’s <strong>Download → EPUB</strong> or <strong>HTML</strong>, or its page saved from the browser) or

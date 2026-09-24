@@ -14,6 +14,7 @@
   import Stats from './pages/Stats.svelte';
   import YearInBooks from './pages/YearInBooks.svelte';
   import { kindInfo, type BrowseKind } from './lib/browse';
+  import GoodreadsUpdate from './pages/GoodreadsUpdate.svelte';
   import Import from './pages/Import.svelte';
   import ItemForm from './pages/ItemForm.svelte';
   import ItemPage from './pages/ItemPage.svelte';
@@ -106,6 +107,8 @@
       {#key seg[1]}<ItemPage id={seg[1]} />{/key}
     {:else if seg[0] === 'settings'}
       <Settings />
+    {:else if seg[0] === 'import' && seg[1] === 'goodreads-update'}
+      <GoodreadsUpdate />
     {:else if seg[0] === 'import'}
       <Import />
     {:else if seg[0] === 'browse' && kindInfo(seg[1]) && seg[2] !== undefined}
