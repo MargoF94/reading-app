@@ -3,10 +3,13 @@
   import ColumnChart from '../components/charts/ColumnChart.svelte';
   import StatTile from '../components/charts/StatTile.svelte';
   import Cover from '../components/Cover.svelte';
+  import Icon from '../components/Icon.svelte';
   import { compact, computeStats } from '../lib/stats';
   import { router } from '../lib/router.svelte';
   import { library } from '../lib/store.svelte';
+  import { toasts } from '../lib/toast.svelte';
   import { formatDate, formatMoney, formatNumber, today } from '../lib/util';
+  import { renderYearImage } from '../lib/yearImage';
 
   let { year }: { year: number } = $props();
 
@@ -27,6 +30,34 @@
   const last = $derived(stats.finished.at(-1));
   const currency = $derived(library.settings.displayCurrency);
   const coverSize = $derived(finishedItems.length > 40 ? 56 : 72);
+
+  let making = $state(false);
+
+  async function saveImage() {
+    making = true;
+    try {
+      const blob = await renderYearImage(year, stats, finishedItems);
+      const file = new File([blob], `year-in-books-${year}.png`, { type: 'image/png' });
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: `My ${year} in books` });
+          return;
+        } catch (e) {
+          if ((e as Error).name === 'AbortError') return;
+        }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } catch (e) {
+      toasts.show(e instanceof Error ? e.message : 'Couldn’t create the image.', 'error');
+    } finally {
+      making = false;
+    }
+  }
 </script>
 
 <div class="row head">
@@ -46,6 +77,11 @@
   <p class="big-label">
     {total === 1 ? 'book or fic' : 'books and fics'} finished{year === new Date().getFullYear() ? ' so far' : ''}
   </p>
+  {#if total}
+    <button type="button" class="btn save" disabled={making} onclick={saveImage}>
+      <Icon name="download" size={18} /> {making ? 'Making image…' : 'Save as image'}
+    </button>
+  {/if}
 </section>
 
 {#if total === 0}
@@ -147,6 +183,10 @@
   .big-label {
     color: var(--text-2);
     margin: 0.3rem 0 0;
+  }
+
+  .save {
+    margin-top: 1rem;
   }
 
   .tiles {

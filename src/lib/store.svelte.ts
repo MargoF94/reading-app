@@ -268,6 +268,28 @@ class Library {
     await this.remove('readings', [reading]);
   }
 
+  // ---- editions ---------------------------------------------------------
+
+  editionsOf(item: Item): Item[] {
+    return item.workKey ? this.items.filter((i) => i.workKey === item.workKey && i.id !== item.id) : [];
+  }
+
+  /** Marks two items as editions of the same work (merging existing groups). */
+  async linkEditions(a: Item, b: Item): Promise<void> {
+    const key = a.workKey ?? b.workKey ?? newId();
+    const old = new Set([a.workKey, b.workKey].filter((k): k is string => !!k && k !== key));
+    const changed = this.items.filter((i) => i.id === a.id || i.id === b.id || (i.workKey && old.has(i.workKey)));
+    await this.put('items', changed.filter((i) => i.workKey !== key).map((i) => ({ ...i, workKey: key })));
+  }
+
+  async unlinkEdition(item: Item): Promise<void> {
+    const others = this.editionsOf(item);
+    const changed = [{ ...item, workKey: undefined }];
+    // A group of one is no group.
+    if (others.length === 1) changed.push({ ...others[0], workKey: undefined });
+    await this.put('items', changed);
+  }
+
   // ---- lists ------------------------------------------------------------
 
   list(id: string): ReadingList | undefined {

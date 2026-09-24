@@ -17,6 +17,7 @@
   const format = $derived(q.get('format') ?? '');
   const lang = $derived(q.get('lang') ?? '');
   const sort = $derived(q.get('sort') ?? 'added');
+  const wip = $derived(q.get('wip') === '1');
 
   let view = $state<'grid' | 'list'>(readView());
   let showFilters = $state(false);
@@ -75,6 +76,7 @@
       if (status && library.status(i.id) !== status) return false;
       if (format && i.book?.format !== format) return false;
       if (lang && i.language !== lang) return false;
+      if (wip && !(i.fic && !i.fic.complete)) return false;
       if (needle && !haystack(i).includes(needle)) return false;
       return true;
     });
@@ -89,7 +91,7 @@
     return list.sort(by[sort] ?? by.added);
   });
 
-  const activeFilters = $derived([type, status, format, lang].filter(Boolean).length);
+  const activeFilters = $derived([type, status, format, lang, wip].filter(Boolean).length);
 </script>
 
 <div class="row head">
@@ -169,11 +171,15 @@
         <option value="rating">My rating</option>
       </select>
     </label>
+    <label class="check wip-filter">
+      <input type="checkbox" checked={wip} onchange={(e) => router.setQuery({ wip: e.currentTarget.checked ? '1' : undefined })} />
+      Unfinished fics (WIP)
+    </label>
     {#if activeFilters}
       <button
         type="button"
         class="btn small ghost"
-        onclick={() => router.setQuery({ type: undefined, status: undefined, format: undefined, lang: undefined })}
+        onclick={() => router.setQuery({ type: undefined, status: undefined, format: undefined, lang: undefined, wip: undefined })}
       >
         Clear filters
       </button>

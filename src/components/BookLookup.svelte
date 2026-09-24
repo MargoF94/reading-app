@@ -5,6 +5,7 @@
   import { library } from '../lib/store.svelte';
   import { LANGUAGE_NAME } from '../lib/constants';
   import Icon from './Icon.svelte';
+  import ScanDialog from './ScanDialog.svelte';
 
   // Finds book details by ISBN, Goodreads link, or title/author, and hands the
   // chosen result to the form.
@@ -16,6 +17,8 @@
   let message = $state('');
   let results = $state<ItemDraft[]>([]);
   let goodreadsUrl: string | undefined;
+  let scanning = $state(false);
+  const canScan = typeof navigator !== 'undefined' && !!navigator.mediaDevices;
 
   const opts = () => ({ googleKey: library.settings.googleBooksKey });
 
@@ -96,7 +99,21 @@
       <Icon name="search" size={18} />
       {busy ? 'Searching…' : 'Search'}
     </button>
+    {#if canScan}
+      <button type="button" class="btn" onclick={() => (scanning = true)} aria-label="Scan barcode">
+        <Icon name="barcode" size={18} /><span class="scan-label">Scan</span>
+      </button>
+    {/if}
   </form>
+  <ScanDialog
+    open={scanning}
+    onclose={() => (scanning = false)}
+    onresult={(isbn) => {
+      scanning = false;
+      query = isbn;
+      void search();
+    }}
+  />
   {#if message}<p class="small msg" role="status">{message}</p>{/if}
   {#if results.length}
     <ul class="results">
@@ -146,6 +163,12 @@
     display: flex;
     flex-direction: column;
     gap: 0.3em;
+  }
+
+  @media (max-width: 420px) {
+    .scan-label {
+      display: none;
+    }
   }
 
   .msg {

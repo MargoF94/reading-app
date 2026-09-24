@@ -22,6 +22,12 @@
     [...reading].sort((a, b) => lastActivity(b).localeCompare(lastActivity(a))).slice(0, SHOWN),
   );
   const onHold = $derived(byStatus('on-hold'));
+  // Unfinished fics you've paused until the author posts more.
+  const waiting = $derived(
+    onHold
+      .filter((i) => i.fic && !i.fic.complete)
+      .sort((a, b) => (b.fic?.updatedDate ?? '').localeCompare(a.fic?.updatedDate ?? '')),
+  );
   const updated = $derived(
     [...reading, ...onHold]
       .map((item) => ({ item, n: unreadChapters(item, library.readings(item.id)) }))
@@ -109,6 +115,25 @@
           <li>
             <a href="#/item/{item.id}">{item.title}</a>
             <span class="chip accent">+{n} {n === 1 ? 'chapter' : 'chapters'}</span>
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
+
+  {#if waiting.length}
+    <section>
+      <h2>Waiting for updates</h2>
+      <ul class="updates">
+        {#each waiting as item (item.id)}
+          <li>
+            <a href="#/item/{item.id}">{item.title}</a>
+            <span class="small muted">
+              {item.fic?.chaptersAvailable ?? '?'}/{item.fic?.chaptersTotal ?? '?'} ch.{item.fic?.updatedDate
+                ? ` · updated ${formatDate(item.fic.updatedDate)}`
+                : ''}
+            </span>
+            {#if item.fic?.url}<a class="small" href={item.fic.url} target="_blank" rel="noopener noreferrer">Check AO3</a>{/if}
           </li>
         {/each}
       </ul>

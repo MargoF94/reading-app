@@ -3,7 +3,7 @@
 A personal, single-user reading tracker for books, manga, audiobooks and AO3 fanfics.
 Hosted on GitHub Pages. Interface in English; content in English, Russian and Japanese.
 
-Status: **phases 1–3 built** (foundation, importing, organising & stats) — phase 4 to do.
+Status: **all four phases built.**
 
 ---
 
@@ -213,4 +213,4 @@ Browse: Library has a row of links to Lists, Series (reading order with gaps onc
 3. ✅ **Organising & stats**: tags, lists, series/author/fandom pages, dashboard, goals, Year in Books.
    Also: change a cover from the book/fic page (photo, link, covers found online, remove); edit the
    current read's start/finish dates in place on that page; a somber ink/slate colour palette.
-4. **Extras**: barcode scanning, edition linking, WIP update tracking, shareable Year in Books image.
+4. ✅ **Extras**: barcode scanning (camera or photo; the browser's own reader on Android Chrome, a bundled WebAssembly reader elsewhere, cached for offline use), edition linking (items share a work key; "Other editions" on the book/fic page), WIP tracking ("Work in progress" panel with a Check AO3 link, "Waiting for updates" on Home for on-hold unfinished fics, "Unfinished fics" Library filter), and a Year in Books image (1080×1350 PNG in the current theme; shared on phones, downloaded elsewhere).

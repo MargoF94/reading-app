@@ -1,6 +1,7 @@
 <script lang="ts">
   import Cover from '../components/Cover.svelte';
   import CoverDialog from '../components/CoverDialog.svelte';
+  import Editions from '../components/Editions.svelte';
   import ItemLists from '../components/ItemLists.svelte';
   import ReadingDates from '../components/ReadingDates.svelte';
   import Icon from '../components/Icon.svelte';
@@ -163,6 +164,19 @@
         {/if}
       </div>
 
+      {#if item.fic && !item.fic.complete}
+        <div class="wip small">
+          <span>
+            Work in progress · {item.fic.chaptersAvailable ?? '?'}/{item.fic.chaptersTotal ?? '?'} chapters{item.fic.updatedDate
+              ? ` · updated on AO3 ${formatDate(item.fic.updatedDate)}`
+              : ''}{item.fic.statsDate ? ` · checked ${formatDate(item.fic.statsDate)}` : ''}
+          </span>
+          {#if item.fic.url}
+            <a href={item.fic.url} target="_blank" rel="noopener noreferrer">Check AO3 for new chapters <Icon name="external" size={13} /></a>
+            <span class="muted">Then click the AO3 bookmarklet there, or import its EPUB, to update this fic.</span>
+          {/if}
+        </div>
+      {/if}
       {#if newChapters}
         <p class="new-chapters">{newChapters} new {newChapters === 1 ? 'chapter' : 'chapters'} since your last update</p>
       {/if}
@@ -234,6 +248,8 @@
       </section>
 
       <ReadingHistory {item} />
+
+      <Editions {item} />
 
       <ItemLists {item} />
 
@@ -390,6 +406,18 @@
 
   .by a {
     color: inherit;
+  }
+
+  .wip {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 0.7rem;
+    margin: 0.3rem 0;
+    max-width: 440px;
   }
 
   .new-chapters {

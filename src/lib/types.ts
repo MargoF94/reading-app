@@ -99,6 +99,8 @@ export interface Item extends BaseRecord {
   wordCount?: number;
   wordCountEstimated?: boolean;
   notes?: string;
+  /** Shared by editions of the same work (e.g. a Japanese original and its translation). */
+  workKey?: string;
   book?: BookDetails;
   fic?: FicDetails;
 }
