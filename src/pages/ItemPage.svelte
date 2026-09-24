@@ -3,6 +3,7 @@
   import CoverDialog from '../components/CoverDialog.svelte';
   import Editions from '../components/Editions.svelte';
   import ItemLists from '../components/ItemLists.svelte';
+  import Songs from '../components/Songs.svelte';
   import ReadingDates from '../components/ReadingDates.svelte';
   import Icon from '../components/Icon.svelte';
   import ProgressBar from '../components/ProgressBar.svelte';
@@ -252,6 +253,8 @@
       <Editions {item} />
 
       <ItemLists {item} />
+
+      <Songs {item} />
 
       {#if item.notes}
         <section>

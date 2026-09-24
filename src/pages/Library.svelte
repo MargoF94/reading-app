@@ -59,6 +59,7 @@
         ...(item.fic?.relationships ?? []),
         ...library.names('tags', item.tagIds),
         ...library.names('genres', item.genreIds),
+        ...(item.songs ?? []).flatMap((s) => [s.title, s.artist]),
       ]
         .filter(Boolean)
         .join('\n'),

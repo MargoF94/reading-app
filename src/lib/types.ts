@@ -81,6 +81,15 @@ export interface BookDetails {
   purchases: Purchase[];
 }
 
+/** A song the reader associates with a book or fic (a soundtrack, a vibe). */
+export interface Song {
+  id: string;
+  title: string;
+  artist?: string;
+  url?: string; // http(s) link to listen
+  note?: string;
+}
+
 export interface Item extends BaseRecord {
   type: ItemType;
   title: string;
@@ -101,6 +110,7 @@ export interface Item extends BaseRecord {
   wordCount?: number;
   wordCountEstimated?: boolean;
   notes?: string;
+  songs?: Song[];
   /** Shared by editions of the same work (e.g. a Japanese original and its translation). */
   workKey?: string;
   book?: BookDetails;

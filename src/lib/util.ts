@@ -83,6 +83,18 @@ export function ao3WorkId(url?: string): string | undefined {
   return url?.match(/archiveofourown\.org\/(?:collections\/[^/]+\/)?works\/(\d+)/)?.[1];
 }
 
+/** A listening link typed by the user: http(s) only, "https://" added if missing. */
+export function songUrl(input: string): string | undefined {
+  const text = input.trim();
+  if (!text) return undefined;
+  try {
+    const u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(text) ? text : 'https://' + text);
+    return (u.protocol === 'https:' || u.protocol === 'http:') && u.hostname.includes('.') ? u.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Stable colour for generated covers and chips. */
 export function hashHue(text: string): number {
   let h = 0;

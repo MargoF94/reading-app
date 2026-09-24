@@ -322,6 +322,7 @@
         review: review.trim() || undefined,
         reviewSpoiler: review.trim() ? reviewSpoiler : undefined,
         notes: notes.trim() || undefined,
+        songs: existing?.songs,
         wordCount: words,
         wordCountEstimated: words !== undefined && type === 'book' ? true : undefined,
       };
