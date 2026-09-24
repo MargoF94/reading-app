@@ -73,7 +73,7 @@
     try {
       const found = await Promise.race([
         searchAppleMusic(t, a, store),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000)),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 12000)),
       ]);
       return confidentMatch(found, t, a);
     } catch {

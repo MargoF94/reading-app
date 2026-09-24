@@ -57,9 +57,10 @@ export function parseItunesResults(json: unknown): AppleTrack[] {
   const out: AppleTrack[] = [];
   for (const r of results) {
     if (r.kind !== 'song' || typeof r.trackViewUrl !== 'string' || typeof r.trackName !== 'string') continue;
+    if (!isAppleMusicUrl(r.trackViewUrl)) continue;
     const url = new URL(r.trackViewUrl);
     url.searchParams.delete('uo'); // tracking parameter
-    const art = typeof r.artworkUrl100 === 'string' ? r.artworkUrl100 : undefined;
+    const art = typeof r.artworkUrl100 === 'string' && /^https:\/\//.test(r.artworkUrl100) ? r.artworkUrl100 : undefined;
     out.push({
       id: Number(r.trackId),
       title: r.trackName,
@@ -80,9 +81,62 @@ export async function searchAppleMusic(title: string, artist: string | undefined
     limit: '8',
     country: store,
   });
-  const res = await fetch(`https://itunes.apple.com/search?${q}`, { signal });
-  if (!res.ok) throw new Error(`Apple Music search failed (${res.status}).`);
-  return parseItunesResults(await res.json());
+  const url = `https://itunes.apple.com/search?${q}`;
+  let json: unknown;
+  try {
+    const res = await fetch(url, { signal });
+    if (!res.ok) throw new Error(`Apple Music search failed (${res.status}).`);
+    json = await res.json();
+  } catch (err) {
+    if (signal?.aborted) throw err;
+    // Browsers often refuse Apple's answer to a direct request (no CORS headers);
+    // Apple's documented way for web pages is JSONP.
+    json = await jsonp(url, signal);
+  }
+  return parseItunesResults(json);
+}
+
+/**
+ * Loads a JSONP URL inside a sandboxed, hidden frame with no access to this app
+ * (its storage, sync token or pages), and returns the data it passes back.
+ */
+export function jsonp(url: string, signal?: AbortSignal, timeoutMs = 10_000): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const nonce = Math.random().toString(36).slice(2);
+    const frame = document.createElement('iframe');
+    frame.setAttribute('sandbox', 'allow-scripts');
+    frame.setAttribute('aria-hidden', 'true');
+    frame.tabIndex = -1;
+    frame.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
+    const src = `${url}&callback=cb`.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+    frame.srcdoc =
+      `<script>function cb(d){parent.postMessage({n:"${nonce}",d:d},"*")}<\/script>` +
+      `<script src="${src}" onerror="parent.postMessage({n:'${nonce}',e:1},'*')"><\/script>`;
+
+    const done = () => {
+      clearTimeout(timer);
+      window.removeEventListener('message', onMessage);
+      signal?.removeEventListener('abort', onAbort);
+      frame.remove();
+    };
+    const onMessage = (e: MessageEvent) => {
+      if (e.source !== frame.contentWindow || e.data?.n !== nonce) return;
+      done();
+      if (e.data.e) reject(new Error('Couldn’t reach Apple Music.'));
+      else resolve(e.data.d);
+    };
+    const onAbort = () => {
+      done();
+      reject(new DOMException('Aborted', 'AbortError'));
+    };
+    const timer = setTimeout(() => {
+      done();
+      reject(new Error('Apple Music didn’t answer.'));
+    }, timeoutMs);
+    window.addEventListener('message', onMessage);
+    signal?.addEventListener('abort', onAbort);
+    document.body.appendChild(frame);
+  });
 }
 
 const simplify = (s: string) =>
