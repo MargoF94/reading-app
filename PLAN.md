@@ -3,7 +3,7 @@
 A personal, single-user reading tracker for books, manga, audiobooks and AO3 fanfics.
 Hosted on GitHub Pages. Interface in English; content in English, Russian and Japanese.
 
-Status: **planning** — no code yet.
+Status: **phase 1 (foundation) built** — phases 2–4 to do.
 
 ---
 
