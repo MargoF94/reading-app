@@ -1,6 +1,7 @@
 <script lang="ts">
   import Cover from '../components/Cover.svelte';
   import GoalsCard from '../components/GoalsCard.svelte';
+  import HomePlanner from '../components/calendar/HomePlanner.svelte';
   import ItemCard from '../components/ItemCard.svelte';
   import ProgressBar from '../components/ProgressBar.svelte';
   import ProgressDialog from '../components/ProgressDialog.svelte';
@@ -74,6 +75,8 @@
     </p>
   </div>
 {:else}
+  <HomePlanner />
+
   <div class="stats">
     <div class="stat"><strong>{booksThisYear}</strong><span>books read in {year}</span></div>
     <div class="stat"><strong>{ficsThisYear}</strong><span>fics read in {year}</span></div>

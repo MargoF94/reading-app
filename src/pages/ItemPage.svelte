@@ -5,6 +5,7 @@
   import ItemLists from '../components/ItemLists.svelte';
   import Songs from '../components/Songs.svelte';
   import ItemWords from '../components/vocab/ItemWords.svelte';
+  import ItemSchedule from '../components/calendar/ItemSchedule.svelte';
   import ReadingDates from '../components/ReadingDates.svelte';
   import Icon from '../components/Icon.svelte';
   import ProgressBar from '../components/ProgressBar.svelte';
@@ -250,6 +251,8 @@
       </section>
 
       <ReadingHistory {item} />
+
+      <ItemSchedule {item} />
 
       <Editions {item} />
 

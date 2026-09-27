@@ -29,6 +29,8 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
         navigateFallback: 'index.html',
+        // Opens the book when a reading reminder is tapped.
+        importScripts: ['sw-notify.js'],
         // The barcode reader (~1 MB) is fetched on first scan, then kept for offline use.
         runtimeCaching: [{ urlPattern: /\.wasm$/, handler: 'CacheFirst', options: { cacheName: 'wasm' } }],
       },

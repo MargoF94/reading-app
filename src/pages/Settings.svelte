@@ -1,6 +1,7 @@
 <script lang="ts">
   import { MUSIC_STORES, musicStore } from '../lib/appleMusic';
   import CoverFinder from '../components/CoverFinder.svelte';
+  import ReminderSettings from '../components/calendar/ReminderSettings.svelte';
   import ManageNames from '../components/ManageNames.svelte';
   import { needsRates, withRates } from '../lib/fx';
   import { CURRENCIES } from '../lib/constants';
@@ -194,6 +195,8 @@
       </label>
     </div>
   </section>
+
+  <ReminderSettings />
 
   <section class="card stack">
     <h2>Length estimates</h2>

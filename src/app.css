@@ -12,6 +12,8 @@
   --accent-soft: #dde3e8;
   --star: #94773a;
   --ok: #3e6b50;
+  --ok-soft: #dfe9e2;
+  --upcoming: #868c92;
   --warn: #80622a;
   --danger: #9b3c3c;
   --shadow: 0 1px 2px rgb(20 26 32 / 0.06), 0 2px 8px rgb(20 26 32 / 0.06);
@@ -47,6 +49,8 @@
     --accent-soft: #263039;
     --star: #c4a661;
     --ok: #86b69a;
+    --ok-soft: #1f2d25;
+    --upcoming: #7a8289;
     --warn: #cfaa62;
     --danger: #dc8f8f;
     --shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 2px 8px rgb(0 0 0 / 0.35);
@@ -74,6 +78,8 @@
   --accent-soft: #263039;
   --star: #c4a661;
   --ok: #86b69a;
+  --ok-soft: #1f2d25;
+  --upcoming: #7a8289;
   --warn: #cfaa62;
   --danger: #dc8f8f;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 2px 8px rgb(0 0 0 / 0.35);
@@ -386,4 +392,21 @@ label {
   padding-left: 1em;
   border-left: 3px solid var(--border);
   color: var(--text-2);
+}
+
+/* Reading calendar: scheduled (green) and not-yet-published (gray) covers. */
+.ring {
+  display: inline-flex;
+  border-radius: 5px;
+  outline: 3px solid transparent;
+  outline-offset: 1px;
+  flex-shrink: 0;
+}
+
+.ring.scheduled {
+  outline-color: var(--ok);
+}
+
+.ring.upcoming {
+  outline-color: var(--upcoming);
 }

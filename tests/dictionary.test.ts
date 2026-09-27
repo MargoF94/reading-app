@@ -88,9 +88,9 @@ describe('dictionary', () => {
     const c = emptyCollections();
     c.vocabulary.push({ id: 'w', createdAt: 'a', updatedAt: 'a', itemId: 'i', word: 'x', senses: [{ text: 'y' }] });
     const file = toLibraryFile(c, 'now');
-    expect(file.schema).toBe(2);
+    expect(file.schema).toBe(3);
     expect(parseLibraryFile(JSON.stringify(file)).vocabulary).toHaveLength(1);
     expect(parseLibraryFile(JSON.stringify({ app: 'reading-app', schema: 1, items: [] })).vocabulary).toEqual([]);
-    expect(() => parseLibraryFile(JSON.stringify({ app: 'reading-app', schema: 3 }))).toThrow();
+    expect(() => parseLibraryFile(JSON.stringify({ app: 'reading-app', schema: 4 }))).toThrow();
   });
 });

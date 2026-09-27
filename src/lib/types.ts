@@ -196,6 +196,20 @@ export interface VocabWord extends BaseRecord {
   note?: string; // e.g. the sentence it appeared in
 }
 
+export type Repeat = 'daily' | 'weekdays' | 'weekly';
+
+/** Planned reading time for a book or fic. Dates and times are local ("floating"). */
+export interface ReadingSession extends BaseRecord {
+  itemId: string;
+  date: string; // YYYY-MM-DD (first date when repeating)
+  start: string; // HH:MM
+  minutes: number;
+  remind?: number; // minutes before the start; undefined = no reminder
+  repeat?: Repeat;
+  skipped?: string[]; // dates removed from a repeating session
+  note?: string;
+}
+
 export type Theme = 'system' | 'light' | 'dark';
 
 export interface Settings extends BaseRecord {
@@ -229,6 +243,7 @@ export interface Collections {
   goals: Goal[];
   settings: Settings[];
   vocabulary: VocabWord[];
+  schedule: ReadingSession[];
 }
 
 export type CollectionName = keyof Collections;
@@ -245,12 +260,13 @@ export const COLLECTION_NAMES: CollectionName[] = [
   'goals',
   'settings',
   'vocabulary',
+  'schedule',
 ];
 
 /** Shape of library.json. */
 export interface LibraryFile extends Collections {
   app: 'reading-app';
-  /** 2 added `vocabulary`; older app versions refuse newer files instead of dropping data. */
-  schema: 2;
+  /** 2 added `vocabulary`, 3 `schedule`; older app versions refuse newer files instead of dropping data. */
+  schema: 3;
   savedAt: string;
 }

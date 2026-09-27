@@ -12,6 +12,8 @@
   import ListPage from './pages/ListPage.svelte';
   import ListsPage from './pages/ListsPage.svelte';
   import WordsPage from './pages/WordsPage.svelte';
+  import CalendarPage from './pages/CalendarPage.svelte';
+  import ReminderBanner from './components/calendar/ReminderBanner.svelte';
   import Stats from './pages/Stats.svelte';
   import YearInBooks from './pages/YearInBooks.svelte';
   import { kindInfo, type BrowseKind } from './lib/browse';
@@ -58,10 +60,13 @@
       match: (s: string[]) => ['library', 'browse', 'lists', 'list'].includes(s[0]),
     },
     { href: '#/add', icon: 'plus', label: 'Add', match: (s: string[]) => s[0] === 'add' || s[0] === 'import' },
+    { href: '#/calendar', icon: 'calendar', label: 'Calendar', match: (s: string[]) => s[0] === 'calendar' },
     { href: '#/words', icon: 'words', label: 'Words', match: (s: string[]) => s[0] === 'words' || s[0] === 'vocabulary' },
     { href: '#/stats', icon: 'chart', label: 'Stats', match: (s: string[]) => s[0] === 'stats' },
-    { href: '#/settings', icon: 'settings', label: 'Settings', match: (s: string[]) => s[0] === 'settings' },
   ];
+  // Phones show Settings as a gear in the top bar; the sidebar lists it.
+  const SETTINGS = { href: '#/settings', icon: 'settings', label: 'Settings', match: (s: string[]) => s[0] === 'settings' };
+  const SIDE_NAV = [...NAV, SETTINGS];
 
   const seg = $derived(router.route.segments);
 </script>
@@ -71,7 +76,7 @@
 <div class="shell">
   <nav class="side" aria-label="Main">
     <a class="brand" href="#/"><Icon name="book" size={22} /> Reading Log</a>
-    {#each NAV as n (n.href)}
+    {#each SIDE_NAV as n (n.href)}
       <a href={n.href} class:active={n.match(seg)} aria-current={n.match(seg) ? 'page' : undefined}>
         <Icon name={n.icon} />
         {n.label}
@@ -81,7 +86,17 @@
   </nav>
 
   <main>
-    <div class="topbar"><SyncBadge /></div>
+    <div class="topbar">
+      <SyncBadge />
+      <a
+        class="gear"
+        href="#/settings"
+        class:active={SETTINGS.match(seg)}
+        aria-label="Settings"
+        aria-current={SETTINGS.match(seg) ? 'page' : undefined}><Icon name="settings" size={22} /></a
+      >
+    </div>
+    <ReminderBanner />
     {#if loadError}
       <div class="card">
         <h1>Couldn't open the library</h1>
@@ -117,6 +132,8 @@
       {#key seg[1] + '/' + seg[2]}<BrowseDetail kind={seg[1] as BrowseKind} key={seg[2]} />{/key}
     {:else if seg[0] === 'browse' && kindInfo(seg[1])}
       {#key seg[1]}<BrowseIndex kind={seg[1] as BrowseKind} />{/key}
+    {:else if seg[0] === 'calendar'}
+      <CalendarPage />
     {:else if seg[0] === 'words' || seg[0] === 'vocabulary'}
       <WordsPage />
     {:else if seg[0] === 'lists'}
@@ -162,7 +179,20 @@
   .topbar {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
+    gap: 0.4rem;
     min-height: 32px;
+  }
+
+  .gear {
+    display: inline-flex;
+    padding: 0.3rem;
+    border-radius: var(--radius-sm);
+    color: var(--text-2);
+  }
+
+  .gear.active {
+    color: var(--accent);
   }
 
   .side {

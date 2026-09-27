@@ -17,6 +17,7 @@ import type {
   Reading,
   ReadingList,
   Settings,
+  ReadingSession,
   Status,
   VocabWord,
 } from './types';
@@ -59,6 +60,12 @@ class Library {
   vocabulary = $derived(
     this.data.vocabulary.filter((w) => !w.deleted).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
   );
+
+  /** Planned reading sessions. */
+  schedule = $derived.by(() => {
+    const ids = new Set(this.items.map((i) => i.id));
+    return this.data.schedule.filter((s) => !s.deleted && ids.has(s.itemId));
+  });
 
   settings = $derived<Settings>(
     this.data.settings.find((s) => s.id === 'settings' && !s.deleted) ?? defaultSettings(''),
@@ -234,6 +241,7 @@ class Library {
   async deleteItem(item: Item): Promise<void> {
     await this.remove('readings', this.readings(item.id));
     await this.remove('vocabulary', this.wordsFor(item.id));
+    await this.remove('schedule', this.schedule.filter((s) => s.itemId === item.id));
     await this.remove('items', [item]);
     await discardCover(item.coverUrl);
   }
@@ -295,6 +303,16 @@ class Library {
     // A group of one is no group.
     if (others.length === 1) changed.push({ ...others[0], workKey: undefined });
     await this.put('items', changed);
+  }
+
+  // ---- schedule -------------------------------------------------------------
+
+  async saveSession(session: ReadingSession): Promise<void> {
+    await this.put('schedule', [session]);
+  }
+
+  async deleteSession(session: ReadingSession): Promise<void> {
+    await this.remove('schedule', [session]);
   }
 
   // ---- vocabulary ---------------------------------------------------------
