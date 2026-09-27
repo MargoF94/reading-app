@@ -18,6 +18,7 @@ import type {
   ReadingList,
   Settings,
   Status,
+  VocabWord,
 } from './types';
 import { collator, newId, normalize, nowIso, today } from './util';
 
@@ -52,6 +53,11 @@ class Library {
 
   lists = $derived(
     this.data.lists.filter((l) => !l.deleted).sort((a, b) => collator.compare(a.name, b.name)),
+  );
+
+  /** Learned words, in the order they were added. */
+  vocabulary = $derived(
+    this.data.vocabulary.filter((w) => !w.deleted).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
   );
 
   settings = $derived<Settings>(
@@ -227,6 +233,7 @@ class Library {
 
   async deleteItem(item: Item): Promise<void> {
     await this.remove('readings', this.readings(item.id));
+    await this.remove('vocabulary', this.wordsFor(item.id));
     await this.remove('items', [item]);
     await discardCover(item.coverUrl);
   }
@@ -288,6 +295,20 @@ class Library {
     // A group of one is no group.
     if (others.length === 1) changed.push({ ...others[0], workKey: undefined });
     await this.put('items', changed);
+  }
+
+  // ---- vocabulary ---------------------------------------------------------
+
+  wordsFor(itemId: string): VocabWord[] {
+    return this.vocabulary.filter((w) => w.itemId === itemId);
+  }
+
+  async saveWord(word: VocabWord): Promise<void> {
+    await this.put('vocabulary', [word]);
+  }
+
+  async deleteWord(word: VocabWord): Promise<void> {
+    await this.remove('vocabulary', [word]);
   }
 
   // ---- lists ------------------------------------------------------------

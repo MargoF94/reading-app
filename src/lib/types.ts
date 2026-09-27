@@ -170,6 +170,32 @@ export interface Goal extends BaseRecord {
   fics?: number;
 }
 
+/** One meaning of a word, from a dictionary or written by the reader. */
+export interface WordSense {
+  pos?: string; // part of speech, e.g. "noun"
+  text: string;
+  example?: string;
+}
+
+export interface WordPronunciation {
+  ipa?: string; // e.g. "/həˈləʊ/"
+  audio?: string; // https link to a recording
+  accent?: string; // e.g. "US", "UK"
+}
+
+/** A word the reader learned from a book or fic. */
+export interface VocabWord extends BaseRecord {
+  itemId: string;
+  word: string;
+  language?: string; // ISO 639-1 code
+  senses: WordSense[];
+  manual?: boolean; // meaning written by the reader rather than taken from a dictionary
+  source?: string; // dictionary the meaning came from
+  sourceUrl?: string;
+  pronunciations?: WordPronunciation[];
+  note?: string; // e.g. the sentence it appeared in
+}
+
 export type Theme = 'system' | 'light' | 'dark';
 
 export interface Settings extends BaseRecord {
@@ -202,6 +228,7 @@ export interface Collections {
   lists: ReadingList[];
   goals: Goal[];
   settings: Settings[];
+  vocabulary: VocabWord[];
 }
 
 export type CollectionName = keyof Collections;
@@ -217,11 +244,13 @@ export const COLLECTION_NAMES: CollectionName[] = [
   'lists',
   'goals',
   'settings',
+  'vocabulary',
 ];
 
 /** Shape of library.json. */
 export interface LibraryFile extends Collections {
   app: 'reading-app';
-  schema: 1;
+  /** 2 added `vocabulary`; older app versions refuse newer files instead of dropping data. */
+  schema: 2;
   savedAt: string;
 }

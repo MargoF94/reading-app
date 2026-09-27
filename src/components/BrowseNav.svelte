@@ -6,6 +6,7 @@
   const links = [
     { href: '#/library', label: 'All', key: 'library' },
     { href: '#/lists', label: 'Lists', key: 'lists' },
+    { href: '#/words', label: 'Words', key: 'words' },
     ...BROWSE_KINDS.filter((k) => !['characters', 'fictags'].includes(k.kind)).map((k) => ({
       href: `#/browse/${k.kind}`,
       label: k.label,

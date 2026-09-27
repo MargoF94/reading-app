@@ -23,8 +23,10 @@ class ReadingDb extends Dexie {
     super('reading-app');
     const schema: Record<string, string> = { meta: 'key' };
     for (const name of COLLECTION_NAMES) schema[name] = 'id';
-    this.version(1).stores(schema);
-    this.version(2).stores({ ...schema, coverFiles: 'path' });
+    const v1 = Object.fromEntries(Object.entries(schema).filter(([k]) => k !== 'vocabulary'));
+    this.version(1).stores(v1);
+    this.version(2).stores({ ...v1, coverFiles: 'path' });
+    this.version(3).stores({ ...schema, coverFiles: 'path' }); // + vocabulary
   }
 
   table_(name: keyof Collections): Table<BaseRecord, string> {

@@ -4,6 +4,7 @@
   import Editions from '../components/Editions.svelte';
   import ItemLists from '../components/ItemLists.svelte';
   import Songs from '../components/Songs.svelte';
+  import ItemWords from '../components/vocab/ItemWords.svelte';
   import ReadingDates from '../components/ReadingDates.svelte';
   import Icon from '../components/Icon.svelte';
   import ProgressBar from '../components/ProgressBar.svelte';
@@ -255,6 +256,8 @@
       <ItemLists {item} />
 
       <Songs {item} />
+
+      <ItemWords {item} />
 
       {#if item.notes}
         <section>
