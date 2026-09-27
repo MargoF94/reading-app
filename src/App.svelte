@@ -55,9 +55,10 @@
       href: '#/library',
       icon: 'library',
       label: 'Library',
-      match: (s: string[]) => ['library', 'browse', 'lists', 'list', 'words'].includes(s[0]),
+      match: (s: string[]) => ['library', 'browse', 'lists', 'list'].includes(s[0]),
     },
     { href: '#/add', icon: 'plus', label: 'Add', match: (s: string[]) => s[0] === 'add' || s[0] === 'import' },
+    { href: '#/words', icon: 'words', label: 'Words', match: (s: string[]) => s[0] === 'words' || s[0] === 'vocabulary' },
     { href: '#/stats', icon: 'chart', label: 'Stats', match: (s: string[]) => s[0] === 'stats' },
     { href: '#/settings', icon: 'settings', label: 'Settings', match: (s: string[]) => s[0] === 'settings' },
   ];
@@ -116,7 +117,7 @@
       {#key seg[1] + '/' + seg[2]}<BrowseDetail kind={seg[1] as BrowseKind} key={seg[2]} />{/key}
     {:else if seg[0] === 'browse' && kindInfo(seg[1])}
       {#key seg[1]}<BrowseIndex kind={seg[1] as BrowseKind} />{/key}
-    {:else if seg[0] === 'words'}
+    {:else if seg[0] === 'words' || seg[0] === 'vocabulary'}
       <WordsPage />
     {:else if seg[0] === 'lists'}
       <ListsPage />

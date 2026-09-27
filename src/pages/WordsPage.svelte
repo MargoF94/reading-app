@@ -1,5 +1,4 @@
 <script lang="ts">
-  import BrowseNav from '../components/BrowseNav.svelte';
   import Icon from '../components/Icon.svelte';
   import WordEntry from '../components/vocab/WordEntry.svelte';
   import WordForm from '../components/vocab/WordForm.svelte';
@@ -53,10 +52,10 @@
 </script>
 
 <div class="row head">
-  <h1>Words</h1>
+  <h1>Vocabulary</h1>
   <span class="small muted">{plural(library.vocabulary.length, 'word')}</span>
 </div>
-<BrowseNav current="words" />
+<p class="small muted intro">Words you’ve learned from your books and fics.</p>
 
 {#if library.vocabulary.length === 0}
   <div class="empty">
@@ -132,6 +131,10 @@
   .head {
     justify-content: space-between;
     align-items: baseline;
+  }
+
+  .intro {
+    margin: 0.2rem 0 0;
   }
 
   .filters {
