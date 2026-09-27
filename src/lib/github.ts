@@ -100,30 +100,36 @@ export async function putFile(cfg: SyncConfig, text: string, sha: string | undef
 }
 
 /** Downloads any file in the data repo as a Blob; null if it doesn't exist. */
-export async function getBlob(cfg: SyncConfig, path: string): Promise<Blob | null> {
-  const res = await request(cfg, `/contents/${path}`, {}, 'application/vnd.github.raw+json');
+export async function getBlob(cfg: SyncConfig, path: string, what = 'a cover'): Promise<Blob | null> {
+  const res = await request(cfg, `/contents/${encodePath(path)}`, {}, 'application/vnd.github.raw+json');
   if (res.status === 404) return null;
-  if (!res.ok) await fail(res, 'Downloading a cover');
+  if (!res.ok) await fail(res, `Downloading ${what}`);
   return res.blob();
 }
 
 /** Creates a new file from raw bytes (base64). */
-export async function putBlob(cfg: SyncConfig, path: string, blob: Blob, message: string): Promise<void> {
-  const res = await request(cfg, `/contents/${path}`, {
+export async function putBlob(cfg: SyncConfig, path: string, blob: Blob, message: string, what = 'a cover'): Promise<void> {
+  const res = await request(cfg, `/contents/${encodePath(path)}`, {
     method: 'PUT',
     body: JSON.stringify({ message, content: bytesToBase64(new Uint8Array(await blob.arrayBuffer())) }),
   });
   // 422 = the file already exists (uploaded earlier from this or another device).
-  if (!res.ok && res.status !== 422) await fail(res, 'Uploading a cover');
+  if (!res.ok && res.status !== 422) await fail(res, `Uploading ${what}`);
 }
 
-export async function deletePath(cfg: SyncConfig, path: string, message: string): Promise<void> {
-  const meta = await request(cfg, `/contents/${path}`);
+export async function deletePath(cfg: SyncConfig, path: string, message: string, what = 'a cover'): Promise<void> {
+  // Only the sha is needed: ask for the object without its (possibly large) content.
+  const meta = await request(cfg, `/contents/${encodePath(path)}`, {}, 'application/vnd.github.object+json');
   if (meta.status === 404) return;
-  if (!meta.ok) await fail(meta, 'Deleting a cover');
+  if (!meta.ok) await fail(meta, `Deleting ${what}`);
   const { sha } = await meta.json();
-  const res = await request(cfg, `/contents/${path}`, { method: 'DELETE', body: JSON.stringify({ message, sha }) });
-  if (!res.ok && res.status !== 404) await fail(res, 'Deleting a cover');
+  const res = await request(cfg, `/contents/${encodePath(path)}`, { method: 'DELETE', body: JSON.stringify({ message, sha }) });
+  if (!res.ok && res.status !== 404) await fail(res, `Deleting ${what}`);
+}
+
+/** Each path segment URL-encoded (file names may contain spaces or Japanese). */
+function encodePath(path: string): string {
+  return path.split('/').map(encodeURIComponent).join('/');
 }
 
 export function encodeBase64(text: string): string {

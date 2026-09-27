@@ -50,3 +50,15 @@ export function loadDraft(id: string | null | undefined): ItemDraft | undefined 
     return undefined;
   }
 }
+
+// The file a draft was read from (e.g. an AO3 EPUB), so the form can offer to keep it.
+// Memory only: files can't go into sessionStorage.
+const files = new Map<string, File>();
+
+export function attachDraftFile(id: string, file: File): void {
+  files.set(id, file);
+}
+
+export function draftFile(id: string | null | undefined): File | undefined {
+  return id ? files.get(id) : undefined;
+}

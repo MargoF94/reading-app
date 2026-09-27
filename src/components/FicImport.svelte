@@ -4,7 +4,7 @@
   import Icon from './Icon.svelte';
 
   // Reads an AO3 EPUB or HTML download (or a saved page) and hands the fic's details over.
-  let { onimport }: { onimport: (draft: ItemDraft) => void } = $props();
+  let { onimport }: { onimport: (draft: ItemDraft, file: File) => void } = $props();
 
   let input: HTMLInputElement | undefined = $state();
   let message = $state('');
@@ -16,7 +16,7 @@
     try {
       const draft = await draftFromFile(file);
       if (draft.type !== 'fic') throw new Error('That file is a book page, not an AO3 fic.');
-      onimport(draft);
+      onimport(draft, file);
       message = `Filled in from the AO3 ${/\.epub$/i.test(file.name) ? 'EPUB' : 'page'}. Check the details below.`;
     } catch (err) {
       message = err instanceof Error ? err.message : String(err);

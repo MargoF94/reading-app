@@ -7,7 +7,9 @@
   import Icon from '../components/Icon.svelte';
   import StarRating from '../components/StarRating.svelte';
   import { discardCover, isRepoCover, saveCover } from '../lib/covers';
-  import { loadDraft, saveDraft, type ItemDraft } from '../lib/drafts';
+  import { attachDraftFile, draftFile, loadDraft, saveDraft, type ItemDraft } from '../lib/drafts';
+  import { formatBytes, MAX_FILE_BYTES, uploadItemFile } from '../lib/itemFiles';
+  import { sync } from '../lib/sync.svelte';
   import { convert, withRates } from '../lib/fx';
   import { cleanIsbn, validIsbn10, validIsbn13 } from '../lib/isbn';
   import {
@@ -228,14 +230,26 @@
   }
 
   /** A fic from an AO3 file: if it's already in the library, offer to update that one instead. */
-  function ficImported(d: ItemDraft) {
+  function ficImported(d: ItemDraft, file: File) {
     const dup = isNew ? library.ficByWorkId(d.fic?.workId) : undefined;
     if (dup && confirm(`“${dup.title}” is already in your library. Update it with the new details instead?`)) {
-      router.go(`/item/${dup.id}/edit?draft=${saveDraft(d)}`, true);
+      const id = saveDraft(d);
+      if (/\.epub$/i.test(file.name)) attachDraftFile(id, file);
+      router.go(`/item/${dup.id}/edit?draft=${id}`, true);
       return;
     }
     applyDraft(d, true);
+    if (/\.epub$/i.test(file.name)) {
+      keptFile = file;
+      keepFile = true;
+    }
   }
+
+  // An EPUB the details came from: offer to keep it in the data repo.
+  // svelte-ignore state_referenced_locally
+  let keptFile = $state<File | undefined>(draftFile(draftId));
+  let keepFile = $state(true);
+  const canKeep = $derived(!!keptFile && !!sync.config && keptFile.size <= MAX_FILE_BYTES);
   // ---- validation helpers ----
   function num(v: string, field: string, errs: Record<string, string>): number | undefined {
     if (v.trim() === '') return undefined;
@@ -323,6 +337,7 @@
         reviewSpoiler: review.trim() ? reviewSpoiler : undefined,
         notes: notes.trim() || undefined,
         songs: existing?.songs,
+        files: existing?.files,
         wordCount: words,
         wordCountEstimated: words !== undefined && type === 'book' ? true : undefined,
       };
@@ -370,6 +385,17 @@
       await library.saveItem(item);
       if (isNew && initialStatus !== 'want-to-read') await library.setStatus(item, initialStatus);
       toasts.show(isNew ? 'Added to your library.' : 'Saved.');
+      if (canKeep && keepFile && keptFile) {
+        const file = keptFile;
+        // Upload in the background; the item page shows the file once it's there.
+        void uploadItemFile(sync.config!, item, file)
+          .then(async (rec) => {
+            const fresh = library.item(item.id) ?? item;
+            await library.saveItem({ ...fresh, files: [...(fresh.files ?? []), rec] });
+            toasts.show(`Kept “${file.name}” in your repository.`);
+          })
+          .catch((err) => toasts.show(err instanceof Error ? err.message : String(err), 'error'));
+      }
       router.go(`/item/${item.id}`, true);
     } finally {
       saving = false;
@@ -417,6 +443,18 @@
 <h1>{isNew ? (type === 'fic' ? 'Add a fic' : 'Add a book') : `Edit ${type === 'fic' ? 'fic' : 'book'}`}</h1>
 
 {#if banner}<p class="banner" role="status">{banner}</p>{/if}
+{#if keptFile}
+  {#if canKeep}
+    <label class="keep-file">
+      <input type="checkbox" bind:checked={keepFile} />
+      <span>Keep <strong>{keptFile.name}</strong> ({formatBytes(keptFile.size)}) in my private repository, to download again any time</span>
+    </label>
+  {:else if !sync.config}
+    <p class="small muted keep-note">To keep this EPUB in your private repository, connect sync in Settings first.</p>
+  {:else}
+    <p class="small muted keep-note">This EPUB is too big to keep (over {formatBytes(MAX_FILE_BYTES)}).</p>
+  {/if}
+{/if}
 {#if isNew && !draft}
   <p class="small muted import-hint">
     Moving from Goodreads, or adding from AO3 in one click? See <a href="#/import">Import</a>.
@@ -890,6 +928,31 @@
   .rate {
     max-width: 220px;
     margin-top: 0.4rem;
+  }
+
+  .keep-file {
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-start;
+    margin: 0 0 1rem;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    cursor: pointer;
+    overflow-wrap: anywhere;
+  }
+
+  .keep-file input {
+    margin-top: 0.2rem;
+    width: 1.1rem;
+    height: 1.1rem;
+    flex-shrink: 0;
+    accent-color: var(--accent);
+  }
+
+  .keep-note {
+    margin: 0 0 1rem;
   }
 
   .banner {

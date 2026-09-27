@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import GoodreadsImport from '../components/GoodreadsImport.svelte';
   import Icon from '../components/Icon.svelte';
-  import { saveDraft, type ItemDraft } from '../lib/drafts';
+  import { attachDraftFile, saveDraft, type ItemDraft } from '../lib/drafts';
   import {
     amazonBookmarklet,
     ao3Bookmarklet,
@@ -26,12 +26,13 @@
   ];
 
   /** Opens the add form (or the existing item's edit form) pre-filled with the draft. */
-  function open(draft: ItemDraft) {
+  function open(draft: ItemDraft, file?: File) {
     const existing =
       draft.type === 'fic'
         ? library.ficByWorkId(draft.fic?.workId)
         : library.bookByIds(draft.book?.goodreadsUrl, draft.book?.isbn13);
     const id = saveDraft(draft);
+    if (file && /\.epub$/i.test(file.name)) attachDraftFile(id, file);
     if (existing) {
       toasts.show(`“${existing.title}” is already in your library — showing it with the new details.`);
       router.go(`/item/${existing.id}/edit?draft=${id}`, true);
@@ -55,7 +56,7 @@
     if (!file) return;
     pageError = '';
     try {
-      open(await draftFromFile(file));
+      open(await draftFromFile(file), file);
     } catch (err) {
       pageError = err instanceof Error ? err.message : String(err);
     } finally {

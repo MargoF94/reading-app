@@ -6,6 +6,9 @@
   import Songs from '../components/Songs.svelte';
   import ItemWords from '../components/vocab/ItemWords.svelte';
   import ItemSchedule from '../components/calendar/ItemSchedule.svelte';
+  import ItemFiles from '../components/ItemFiles.svelte';
+  import { deleteItemFile } from '../lib/itemFiles';
+  import { sync } from '../lib/sync.svelte';
   import ReadingDates from '../components/ReadingDates.svelte';
   import Icon from '../components/Icon.svelte';
   import ProgressBar from '../components/ProgressBar.svelte';
@@ -48,7 +51,14 @@
   }
 
   async function remove() {
-    if (!item || !confirm(`Delete “${item.title}” and its reading history?`)) return;
+    const files = item?.files ?? [];
+    const also = files.length ? ` and its ${files.length === 1 ? 'file' : `${files.length} files`} in your repository` : '';
+    if (!item || !confirm(`Delete “${item.title}”, its reading history${also}?`)) return;
+    const cfg = sync.config;
+    if (cfg && files.length) {
+      const results = await Promise.allSettled(files.map((f) => deleteItemFile(cfg, item!, f)));
+      if (results.some((r) => r.status === 'rejected')) toasts.show('Some files couldn’t be deleted from the repository.', 'error');
+    }
     await library.deleteItem(item);
     toasts.show('Deleted.');
     router.go('/library', true);
@@ -253,6 +263,8 @@
       <ReadingHistory {item} />
 
       <ItemSchedule {item} />
+
+      <ItemFiles {item} />
 
       <Editions {item} />
 

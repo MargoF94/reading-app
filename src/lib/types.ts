@@ -91,6 +91,16 @@ export interface Song {
   note?: string;
 }
 
+/** A file (e.g. an EPUB) kept in the private data repo under files/. */
+export interface StoredFile {
+  id: string;
+  name: string; // original file name, shown and used when downloading
+  path: string; // path in the data repo
+  size: number; // bytes
+  type?: string; // MIME type
+  addedAt: string; // ISO timestamp
+}
+
 export interface Item extends BaseRecord {
   type: ItemType;
   title: string;
@@ -112,6 +122,7 @@ export interface Item extends BaseRecord {
   wordCountEstimated?: boolean;
   notes?: string;
   songs?: Song[];
+  files?: StoredFile[];
   /** Shared by editions of the same work (e.g. a Japanese original and its translation). */
   workKey?: string;
   book?: BookDetails;
