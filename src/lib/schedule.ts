@@ -1,7 +1,7 @@
 // Reading calendar: planned sessions (with repeats), book release dates,
 // release notices for Home, reminders and export to phone calendars.
 // Dates are "YYYY-MM-DD" and times "HH:MM" in the reader's local time.
-import type { Item, ReadingSession, Repeat } from './types';
+import type { Item, Purchase, Reading, ReadingSession, Repeat } from './types';
 import { toDateString } from './util';
 
 // ---- dates ------------------------------------------------------------------------
@@ -250,4 +250,34 @@ export function googleCalendarUrl(s: ReadingSession, title: string, link: string
   const rule = rrule(s.repeat);
   if (rule) q.set('recur', `RRULE:${rule}`);
   return `https://calendar.google.com/calendar/render?${q}`;
+}
+
+// ---- reading history on the calendar ------------------------------------------------
+
+export type HistoryKind = 'started' | 'finished' | 'dnf' | 'bought';
+
+export interface HistoryEvent {
+  kind: HistoryKind;
+  item: Item;
+  date: string;
+  reading?: Reading;
+  purchase?: Purchase;
+}
+
+/** Starts, finishes, DNFs (from read-throughs) and purchases between two dates. */
+export function historyEvents(items: Item[], readings: Reading[], from: string, to: string): HistoryEvent[] {
+  const byId = new Map(items.map((i) => [i.id, i]));
+  const within = (d: string | undefined): d is string => isFullDate(d) && d >= from && d <= to;
+  const out: HistoryEvent[] = [];
+  for (const r of readings) {
+    const item = r.deleted ? undefined : byId.get(r.itemId);
+    if (!item) continue;
+    if (within(r.startDate)) out.push({ kind: 'started', item, date: r.startDate, reading: r });
+    if (within(r.finishDate) && (r.outcome === 'finished' || r.outcome === 'dnf'))
+      out.push({ kind: r.outcome === 'finished' ? 'finished' : 'dnf', item, date: r.finishDate, reading: r });
+  }
+  for (const item of items) {
+    for (const p of item.book?.purchases ?? []) if (within(p.date)) out.push({ kind: 'bought', item, date: p.date, purchase: p });
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date));
 }

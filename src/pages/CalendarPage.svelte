@@ -1,18 +1,21 @@
 <script lang="ts">
+  import EventCover, { EVENT_KINDS, type EventKind } from '../components/calendar/EventCover.svelte';
+  import HistoryRow from '../components/calendar/HistoryRow.svelte';
   import ReleaseRow from '../components/calendar/ReleaseRow.svelte';
   import ScheduleDialog from '../components/calendar/ScheduleDialog.svelte';
   import SessionRow from '../components/calendar/SessionRow.svelte';
-  import Cover from '../components/Cover.svelte';
   import Icon from '../components/Icon.svelte';
   import { router } from '../lib/router.svelte';
   import {
     addDays,
     addMonths,
+    historyEvents,
     monthGrid,
     monthReleases,
     occurrences,
     releases,
     startOfWeek,
+    type HistoryEvent,
     type Occurrence,
     type Release,
   } from '../lib/schedule';
@@ -42,20 +45,51 @@
     return [now, addDays(now, 59)];
   });
 
+  // Kinds hidden with the legend toggles (remembered on this device).
+  const HIDDEN_KEY = 'reading-app:calendar-hidden';
+  let hidden = $state<Set<EventKind>>(loadHidden());
+  function loadHidden(): Set<EventKind> {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? '[]'));
+    } catch {
+      return new Set();
+    }
+  }
+  function toggle(kind: EventKind) {
+    const next = new Set(hidden);
+    if (!next.delete(kind)) next.add(kind);
+    hidden = next;
+    try {
+      localStorage.setItem(HIDDEN_KEY, JSON.stringify([...next]));
+    } catch {
+      /* not remembered */
+    }
+  }
+
   const occs = $derived(occurrences(library.schedule, range[0], range[1]));
   const rels = $derived(releases(library.items, range[0], range[1]));
+  const history = $derived(historyEvents(library.items, library.data.readings, range[0], range[1]));
 
-  type Entry = { kind: 'session'; occ: Occurrence; item: Item } | { kind: 'release'; rel: Release; item: Item };
+  type Entry =
+    | { kind: 'scheduled'; occ: Occurrence; item: Item }
+    | { kind: 'upcoming'; rel: Release; item: Item }
+    | { kind: HistoryEvent['kind']; ev: HistoryEvent; item: Item };
+  // Within a day: what happened first, then planned reading, then releases.
+  const RANK: Record<EventKind, number> = { finished: 0, dnf: 1, started: 2, bought: 3, scheduled: 4, upcoming: 5 };
   const byDate = $derived.by(() => {
     const map = new Map<string, Entry[]>();
-    const add = (d: string, e: Entry) => (map.get(d) ?? map.set(d, []).get(d)!).push(e);
+    const add = (d: string, e: Entry) => !hidden.has(e.kind) && (map.get(d) ?? map.set(d, []).get(d)!).push(e);
+    for (const ev of history) add(ev.date, { kind: ev.kind, ev, item: ev.item });
     for (const occ of occs) {
       const item = library.item(occ.session.itemId);
-      if (item) add(occ.date, { kind: 'session', occ, item });
+      if (item) add(occ.date, { kind: 'scheduled', occ, item });
     }
-    for (const rel of rels) add(rel.date, { kind: 'release', rel, item: rel.item });
+    for (const rel of rels) add(rel.date, { kind: 'upcoming', rel, item: rel.item });
+    for (const list of map.values()) list.sort((a, b) => RANK[a.kind] - RANK[b.kind]);
     return map;
   });
+  const entryKey = (e: Entry) =>
+    e.kind === 'scheduled' ? e.occ.key : e.kind === 'upcoming' ? `rel-${e.item.id}` : `${e.kind}-${e.ev.reading?.id ?? e.ev.purchase?.id}-${e.item.id}`;
 
   const laterReleases = $derived.by(() => {
     const months = view === 'list' ? [0, 1, 2].map((n) => addMonths(now.slice(0, 7), n)) : [month];
@@ -118,17 +152,23 @@
 </div>
 
 {#snippet entryRow(e: Entry, showDate = false)}
-  {#if e.kind === 'session'}
+  {#if e.kind === 'scheduled'}
     <SessionRow occ={e.occ} {showDate} onedit={() => openEdit(e.occ.session)} />
-  {:else}
+  {:else if e.kind === 'upcoming'}
     <ReleaseRow release={e.rel} {showDate} />
+  {:else}
+    <HistoryRow event={e.ev} {showDate} />
   {/if}
 {/snippet}
 
 {#snippet legend()}
-  <div class="legend small muted">
-    <span><i class="sw scheduled"></i>Scheduled reading</span>
-    <span><i class="sw upcoming"></i>Coming out</span>
+  <div class="legend" role="group" aria-label="Show on the calendar">
+    {#each EVENT_KINDS as k (k.kind)}
+      <button type="button" class="key" class:off={hidden.has(k.kind)} aria-pressed={!hidden.has(k.kind)} onclick={() => toggle(k.kind)}>
+        <span class="ring sw {k.kind}"><span class="ev-badge"><Icon name={k.icon} size={10} /></span></span>
+        {k.label}
+      </button>
+    {/each}
   </div>
 {/snippet}
 
@@ -165,12 +205,13 @@
             onclick={() => go({ d })}
           >
             <span class="n">{+d.slice(8)}</span>
-            {#if first}
-              <span class="ring" class:scheduled={first.kind === 'session'} class:upcoming={first.kind === 'release'}>
-                <Cover item={first.item} width={26} />
+            {#if first}<EventCover item={first.item} kind={first.kind} width={26} />{/if}
+            {#if entries.length > 1}
+              <span class="dots" aria-hidden="true">
+                {#each entries.slice(1, 4) as e, i (i)}<i class="dot {e.kind}"></i>{/each}
+                {#if entries.length > 4}<span class="more">+{entries.length - 4}</span>{/if}
               </span>
             {/if}
-            {#if entries.length > 1}<span class="more">+{entries.length - 1}</span>{/if}
           </button>
         {/each}
       </div>
@@ -185,7 +226,7 @@
         <button type="button" class="btn small" onclick={() => openNew(selected)}><Icon name="plus" size={16} /> Add</button>
       {/if}
     </div>
-    {#each byDate.get(selected) ?? [] as e (e.kind === 'session' ? e.occ.key : e.item.id)}
+    {#each byDate.get(selected) ?? [] as e (entryKey(e))}
       {@render entryRow(e)}
     {:else}
       <p class="small muted" style="margin:0.3rem 0 0">Nothing planned.</p>
@@ -206,7 +247,7 @@
             </button>
           {/if}
         </div>
-        {#each entries as e (e.kind === 'session' ? e.occ.key : e.item.id)}
+        {#each entries as e (entryKey(e))}
           {@render entryRow(e)}
         {:else}
           <p class="small muted" style="margin:0">Nothing planned.</p>
@@ -227,7 +268,7 @@
       {#each days as d (d)}
         <section class="card week-day" class:today={d === now}>
           <h3>{dayTitle(d)}{d === now ? ' · Today' : ''}</h3>
-          {#each byDate.get(d) ?? [] as e (e.kind === 'session' ? e.occ.key : e.item.id)}
+          {#each byDate.get(d) ?? [] as e (entryKey(e))}
             {@render entryRow(e)}
           {/each}
         </section>
@@ -374,29 +415,78 @@
 
   .legend {
     display: flex;
-    gap: 1rem;
-    margin: 0.6rem 0.1rem 0.8rem;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.5rem;
+    margin: 0.7rem 0 0.9rem;
   }
 
-  .legend span {
+  .key {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.55rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 0.25rem 0.7rem 0.25rem 0.5rem;
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+
+  .key.off {
+    color: var(--text-2);
+    background: transparent;
+    text-decoration: line-through;
+  }
+
+  .key.off .sw {
+    opacity: 0.35;
   }
 
   .sw {
-    width: 10px;
-    height: 14px;
+    width: 11px;
+    height: 16px;
     border-radius: 2px;
-    border: 2.5px solid;
+    outline-width: 2.5px;
+    outline-offset: 0;
+    margin-right: 0.2rem;
+    --badge: 12px;
   }
 
-  .sw.scheduled {
-    border-color: var(--ok);
+  .sw :global(.ev-badge) {
+    right: -8px;
+    bottom: -5px;
   }
 
-  .sw.upcoming {
-    border-color: var(--upcoming);
+  .dots {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    margin-top: 2px;
+  }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ev-scheduled);
+  }
+
+  .dot.bought {
+    background: var(--ev-bought);
+  }
+  .dot.finished {
+    background: var(--ev-finished);
+  }
+  .dot.started {
+    background: var(--ev-started);
+  }
+  .dot.dnf {
+    background: var(--ev-dnf);
+  }
+  .dot.upcoming {
+    background: var(--upcoming);
   }
 
   .agenda-head {

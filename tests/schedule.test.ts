@@ -117,3 +117,30 @@ describe('calendar export', () => {
     expect(u.searchParams.get('text')).toBe('Read: Piranesi');
   });
 });
+
+describe('reading history on the calendar', () => {
+  it('lists starts, finishes, DNFs and purchases in range', async () => {
+    const { historyEvents } = await import('../src/lib/schedule');
+    const items = [
+      book('a'),
+      { ...book('b'), book: { purchases: [{ id: 'p', date: '2026-09-10', price: 1200, currency: 'JPY' as const, source: 'bought' as const }, { id: 'q', currency: 'USD' as const, source: 'gift' as const }] } },
+    ];
+    const r = (id: string, extra: object) => ({ id, createdAt: '', updatedAt: '', itemId: 'a', unit: 'pages' as const, log: [], ...extra });
+    const readings = [
+      r('r1', { outcome: 'finished', startDate: '2026-09-01', finishDate: '2026-09-12' }),
+      r('r2', { outcome: 'dnf', startDate: '2026-08-20', finishDate: '2026-09-03' }),
+      r('r3', { outcome: 'reading', startDate: '2026-09-20' }),
+      r('r4', { outcome: 'finished', finishDate: '2026-09-15', deleted: true }),
+      r('r5', { outcome: 'finished', finishDate: '2026' }),
+      { ...r('r6', { outcome: 'finished', finishDate: '2026-09-05' }), itemId: 'gone' },
+    ] as never;
+    const ev = historyEvents(items, readings, '2026-09-01', '2026-09-30');
+    expect(ev.map((e) => `${e.date} ${e.kind} ${e.item.id}`)).toEqual([
+      '2026-09-01 started a',
+      '2026-09-03 dnf a',
+      '2026-09-10 bought b',
+      '2026-09-12 finished a',
+      '2026-09-20 started a',
+    ]);
+  });
+});

@@ -14,6 +14,11 @@
   --ok: #3e6b50;
   --ok-soft: #dfe9e2;
   --upcoming: #868c92;
+  --ev-scheduled: #2f7d4f;
+  --ev-bought: #7a55b0;
+  --ev-finished: #a8781c;
+  --ev-started: #2f66b0;
+  --ev-dnf: #b8433f;
   --warn: #80622a;
   --danger: #9b3c3c;
   --shadow: 0 1px 2px rgb(20 26 32 / 0.06), 0 2px 8px rgb(20 26 32 / 0.06);
@@ -51,6 +56,11 @@
     --ok: #86b69a;
     --ok-soft: #1f2d25;
     --upcoming: #7a8289;
+    --ev-scheduled: #4f9e6c;
+    --ev-bought: #9b80d0;
+    --ev-finished: #bb8c32;
+    --ev-started: #5f8fd6;
+    --ev-dnf: #dc6b64;
     --warn: #cfaa62;
     --danger: #dc8f8f;
     --shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 2px 8px rgb(0 0 0 / 0.35);
@@ -80,6 +90,11 @@
   --ok: #86b69a;
   --ok-soft: #1f2d25;
   --upcoming: #7a8289;
+  --ev-scheduled: #4f9e6c;
+  --ev-bought: #9b80d0;
+  --ev-finished: #bb8c32;
+  --ev-started: #5f8fd6;
+  --ev-dnf: #dc6b64;
   --warn: #cfaa62;
   --danger: #dc8f8f;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 2px 8px rgb(0 0 0 / 0.35);
@@ -394,19 +409,59 @@ label {
   color: var(--text-2);
 }
 
-/* Reading calendar: scheduled (green) and not-yet-published (gray) covers. */
+/* Reading calendar: a colored frame + corner badge per kind of event
+   (validated categorical set; the badge icon and a text label carry it too). */
 .ring {
+  position: relative;
   display: inline-flex;
   border-radius: 5px;
   outline: 3px solid transparent;
   outline-offset: 1px;
   flex-shrink: 0;
+  --ev: transparent;
 }
 
 .ring.scheduled {
-  outline-color: var(--ok);
+  --ev: var(--ev-scheduled);
+}
+.ring.bought {
+  --ev: var(--ev-bought);
+}
+.ring.finished {
+  --ev: var(--ev-finished);
+}
+.ring.started {
+  --ev: var(--ev-started);
+}
+.ring.dnf {
+  --ev: var(--ev-dnf);
+}
+.ring.upcoming {
+  --ev: var(--upcoming);
+  outline-style: dashed;
 }
 
-.ring.upcoming {
-  outline-color: var(--upcoming);
+.ring {
+  outline-color: var(--ev);
+}
+
+.ring .ev-badge {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: var(--badge, 18px);
+  height: var(--badge, 18px);
+  border-radius: 50%;
+  background: var(--ev);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.ring .ev-badge svg {
+  width: 62%;
+  height: 62%;
+  stroke-width: 3;
 }

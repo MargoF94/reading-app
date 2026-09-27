@@ -2,7 +2,7 @@
   import { daysBetween, isFullDate, type Release } from '../../lib/schedule';
   import { library } from '../../lib/store.svelte';
   import { today } from '../../lib/util';
-  import Cover from '../Cover.svelte';
+  import EventCover from './EventCover.svelte';
 
   // A book coming out, in an agenda.
   let { release, showDate = false, coverWidth = 44 }: { release: Release; showDate?: boolean; coverWidth?: number } = $props();
@@ -29,7 +29,7 @@
     <strong>Out</strong>
     <span>release</span>
   </div>
-  <a href="#/item/{item.id}" class="ring upcoming" aria-hidden="true" tabindex="-1"><Cover {item} width={coverWidth} /></a>
+  <a href="#/item/{item.id}" aria-hidden="true" tabindex="-1"><EventCover {item} kind="upcoming" width={coverWidth} /></a>
   <div class="info">
     <a class="title" href="#/item/{item.id}">{item.title}</a>
     <span class="small muted">{library.authorNames(item) || 'Unknown author'}</span>
@@ -46,7 +46,7 @@
   }
 
   .time {
-    width: 3.4rem;
+    width: 4.4rem;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
@@ -57,7 +57,7 @@
 
   .time strong {
     font-size: 1rem;
-    color: var(--upcoming);
+    color: var(--text);
   }
 
   .time .d {

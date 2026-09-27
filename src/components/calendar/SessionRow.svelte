@@ -3,7 +3,7 @@
   import { durationLabel, endTime, REPEAT_LABEL, type Occurrence } from '../../lib/schedule';
   import { library } from '../../lib/store.svelte';
   import { toasts } from '../../lib/toast.svelte';
-  import Cover from '../Cover.svelte';
+  import EventCover from './EventCover.svelte';
   import Icon from '../Icon.svelte';
 
   // One planned reading time in an agenda.
@@ -47,7 +47,7 @@
       <strong>{s.start}</strong>
       <span>{durationLabel(s.minutes)}</span>
     </div>
-    <a href="#/item/{item.id}" class="ring scheduled" aria-hidden="true" tabindex="-1"><Cover {item} width={coverWidth} /></a>
+    <a href="#/item/{item.id}" aria-hidden="true" tabindex="-1"><EventCover {item} kind="scheduled" width={coverWidth} /></a>
     <div class="info">
       <a class="title" href="#/item/{item.id}">{item.title}</a>
       <span class="small muted">{library.authorNames(item) || (item.type === 'fic' ? 'Fic' : 'Book')} · until {endTime(s.start, s.minutes)}</span>
@@ -100,7 +100,7 @@
   }
 
   .time {
-    width: 3.4rem;
+    width: 4.4rem;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
