@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ItemDraft } from '../lib/drafts';
+  import { parseAmazonRef } from '../lib/import/amazon';
   import { parseIsbn } from '../lib/isbn';
   import { goodreadsSlugQuery, lookupIsbn, mergeDrafts, QuotaError, searchBooks } from '../lib/lookup';
   import { library } from '../lib/store.svelte';
@@ -31,6 +32,29 @@
     results = [];
     goodreadsUrl = undefined;
     try {
+      // Amazon link or ASIN: print editions carry the ISBN; Kindle ones only a title in the link.
+      const amazon = parseAmazonRef(q);
+      if (amazon) {
+        if (amazon.isbn13) {
+          const found = await lookupIsbn(amazon.isbn13, opts());
+          onpick(found ?? { type: 'book', book: { isbn13: amazon.isbn13 } });
+          message = found
+            ? `Found by the ISBN in the Amazon link, from ${found.source}. Check the details below.`
+            : 'The Amazon link has this book’s ISBN, but no book database knows it yet. The ISBN was filled in; for the rest use the Amazon bookmarklet (Import page).';
+          return;
+        }
+        if (!amazon.query) {
+          message = amazon.asin
+            ? 'Kindle ASINs can’t be looked up outside Amazon. Paste the full Amazon link (it has the title in it), search by title, or use the Amazon bookmarklet on the book’s page (Import page).'
+            : 'Short Amazon links (amzn.asia) can’t be read. Open it, then copy the full link from the address bar, or use the Amazon bookmarklet there (Import page).';
+          return;
+        }
+        results = await searchBooks(amazon.query, opts());
+        message = results.length
+          ? `Amazon pages can’t be read directly, so these match the title in the link (“${amazon.query}”). For exact Kindle details, use the Amazon bookmarklet (Import page).`
+          : `Nothing found for “${amazon.query}”. Use the Amazon bookmarklet on the book’s page (Import page), or search with fewer words.`;
+        return;
+      }
       const isbn = parseIsbn(q);
       if (isbn) {
         const found = await lookupIsbn(isbn.isbn13, opts());
@@ -90,7 +114,7 @@
       <span class="label">Find details online</span>
       <input
         bind:value={query}
-        placeholder="ISBN, Goodreads link, or title and author"
+        placeholder="ISBN, Amazon or Goodreads link, ASIN, or title"
         autocomplete="off"
         enterkeyhint="search"
       />

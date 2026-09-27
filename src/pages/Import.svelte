@@ -4,6 +4,7 @@
   import Icon from '../components/Icon.svelte';
   import { saveDraft, type ItemDraft } from '../lib/drafts';
   import {
+    amazonBookmarklet,
     ao3Bookmarklet,
     decodePayload,
     draftFromFile,
@@ -21,6 +22,7 @@
   const bookmarklets = [
     { name: 'Reading Log ← AO3', href: ao3Bookmarklet(appUrl), where: 'on an AO3 fic page' },
     { name: 'Reading Log ← Goodreads', href: goodreadsBookmarklet(appUrl), where: 'on a Goodreads book page' },
+    { name: 'Reading Log ← Amazon', href: amazonBookmarklet(appUrl), where: 'on an Amazon book page (amazon.co.jp and others, Kindle too)' },
   ];
 
   /** Opens the add form (or the existing item's edit form) pre-filled with the draft. */
@@ -91,7 +93,7 @@
     <h2>A fic or book file</h2>
     <p class="small" style="margin:0">
       An AO3 fic (AO3’s <strong>Download → EPUB</strong> or <strong>HTML</strong>, or its page saved from the browser) or
-      a saved Goodreads book page. The details open in the add form so you can check them before saving. If it’s already in your library (for
+      a saved Goodreads or Amazon book page. The details open in the add form so you can check them before saving. If it’s already in your library (for
       example a work-in-progress fic with new chapters), its details are updated instead.
     </p>
     <div>
