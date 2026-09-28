@@ -48,3 +48,32 @@ describe('Apple Music', () => {
     expect(appleMusicSearchUrl('Holocene', 'Bon Iver', 'jp')).toBe('https://music.apple.com/jp/search?term=Holocene%20Bon%20Iver');
   });
 });
+
+describe('Apple Music links', () => {
+  it('finds the song in shared links', async () => {
+    const { appleMusicSongRef } = await import('../src/lib/appleMusic');
+    expect(appleMusicSongRef('https://music.apple.com/jp/album/holocene/1440822781?i=1440822792')).toEqual({ id: '1440822792', store: 'jp' });
+    expect(appleMusicSongRef('music.apple.com/us/song/holocene/1440822792')).toEqual({ id: '1440822792', store: 'us' });
+    expect(appleMusicSongRef('https://music.apple.com/jp/song/1440822792')).toEqual({ id: '1440822792', store: 'jp' });
+    expect(appleMusicSongRef('Holocene by Bon Iver https://music.apple.com/gb/album/x/1?i=42&ls')).toEqual({ id: '42', store: 'gb' });
+    expect(appleMusicSongRef('https://music.apple.com/jp/album/bon-iver/1440822781')).toBeUndefined(); // an album
+    expect(appleMusicSongRef('https://open.spotify.com/track/abc')).toBeUndefined();
+  });
+
+  it('looks up name, artist and artwork', async () => {
+    const { lookupAppleSong } = await import('../src/lib/appleMusic');
+    const { vi } = await import('vitest');
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ resultCount: 2, results: [
+        { wrapperType: 'collection', collectionId: 1440822781, collectionName: 'Bon Iver' },
+        { wrapperType: 'track', kind: 'song', trackId: 1440822792, trackName: 'Holocene', artistName: 'Bon Iver', collectionName: 'Bon Iver',
+          artworkUrl100: 'https://is1-ssl.mzstatic.com/image/thumb/x/100x100bb.jpg', trackViewUrl: 'https://music.apple.com/jp/album/holocene/1440822781?i=1440822792&uo=4' },
+      ] })),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const t = await lookupAppleSong('https://music.apple.com/jp/album/holocene/1440822781?i=1440822792', 'us');
+    expect(t).toMatchObject({ title: 'Holocene', artist: 'Bon Iver', url: 'https://music.apple.com/jp/album/holocene/1440822781?i=1440822792' });
+    expect(String(fetchMock.mock.calls[0][0])).toBe('https://itunes.apple.com/lookup?id=1440822792&entity=song&country=jp');
+    vi.unstubAllGlobals();
+  });
+});

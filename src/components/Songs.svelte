@@ -2,7 +2,9 @@
   import {
     appleMusicSearchUrl,
     confidentMatch,
+    appleMusicSongRef,
     isAppleMusicUrl,
+    lookupAppleSong,
     musicStore,
     searchAppleMusic,
     type AppleTrack,
@@ -42,6 +44,8 @@
     note = song?.note ?? '';
     error = searchError = '';
     results = null;
+    linkStatus = '';
+    lookedUp = '';
     queueMicrotask(() => document.getElementById('song-title')?.focus());
   }
 
@@ -58,6 +62,54 @@
     } finally {
       searching = false;
     }
+  }
+
+  // A pasted Apple Music link fills in the song's name, artist and artwork.
+  let linkStatus = $state<'' | 'looking' | 'filled' | 'failed'>('');
+  let lookedUp = '';
+  let lookupCtrl: AbortController | null = null;
+  let pendingLookup: Promise<void> | null = null;
+
+  function fromLink(text: string): Promise<void> {
+    const ref = appleMusicSongRef(text);
+    if (!ref) return Promise.resolve();
+    if (ref.id === lookedUp) return pendingLookup ?? Promise.resolve();
+    pendingLookup = readLink(text, ref.id).finally(() => (pendingLookup = null));
+    return pendingLookup;
+  }
+
+  async function readLink(text: string, id: string) {
+    lookedUp = id;
+    lookupCtrl?.abort();
+    lookupCtrl = new AbortController();
+    linkStatus = 'looking';
+    try {
+      const t = await lookupAppleSong(text, store, lookupCtrl.signal);
+      if (!t) throw new Error('not found');
+      url = t.url;
+      artwork = t.artwork;
+      title = t.title;
+      artist = t.artist;
+      results = null;
+      error = searchError = '';
+      linkStatus = 'filled';
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') return;
+      linkStatus = 'failed';
+    }
+  }
+
+  function linkInput() {
+    if (!appleMusicSongRef(url)) linkStatus = '';
+    void fromLink(url);
+  }
+
+  // A link pasted into the Song field goes to the Link field instead.
+  function titleInput() {
+    if (!appleMusicSongRef(title)) return;
+    url = title.match(/\S*(?:music|itunes)\.apple\.com\/\S+/i)?.[0] ?? title;
+    title = '';
+    void fromLink(url);
   }
 
   function choose(t: AppleTrack) {
@@ -83,6 +135,7 @@
 
   async function save(e: Event) {
     e.preventDefault();
+    if (!title.trim() && appleMusicSongRef(url)) await fromLink(url);
     if (!title.trim()) return (error = 'Enter the song’s name.');
     let link = url.trim() ? songUrl(url) : undefined;
     if (url.trim() && !link) return (error = 'The link should be a web address, e.g. https://music.apple.com/…');
@@ -127,7 +180,7 @@
     <div class="grid">
       <label>
         <span class="label">Song</span>
-        <input id="song-title" bind:value={title} autocomplete="off" />
+        <input id="song-title" bind:value={title} oninput={titleInput} autocomplete="off" placeholder="Name, or paste an Apple Music link" />
       </label>
       <label>
         <span class="label">Artist <span class="muted">(optional)</span></span>
@@ -176,7 +229,14 @@
 
     <label>
       <span class="label">Link <span class="muted">(optional — filled in from Apple Music, or paste YouTube, Spotify…)</span></span>
-      <input bind:value={url} inputmode="url" spellcheck="false" autocomplete="off" placeholder="https://" />
+      <input bind:value={url} oninput={linkInput} inputmode="url" spellcheck="false" autocomplete="off" placeholder="https://" />
+      {#if linkStatus === 'looking'}
+        <span class="small muted" role="status">Reading the song from Apple Music…</span>
+      {:else if linkStatus === 'filled'}
+        <span class="small ok" role="status"><Icon name="check" size={14} /> Song and artist filled in from Apple Music.</span>
+      {:else if linkStatus === 'failed'}
+        <span class="small muted" role="status">Couldn’t read this Apple Music link. Type the song and artist yourself.</span>
+      {/if}
     </label>
     <label>
       <span class="label">Note <span class="muted">(optional — a character, a scene…)</span></span>
@@ -397,6 +457,13 @@
   .use {
     color: var(--accent);
     flex-shrink: 0;
+  }
+
+  .ok {
+    color: var(--ok);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
   }
 
   .error {

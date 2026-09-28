@@ -81,19 +81,50 @@ export async function searchAppleMusic(title: string, artist: string | undefined
     limit: '8',
     country: store,
   });
-  const url = `https://itunes.apple.com/search?${q}`;
-  let json: unknown;
+  return parseItunesResults(await itunes(`https://itunes.apple.com/search?${q}`, signal));
+}
+
+async function itunes(url: string, signal?: AbortSignal): Promise<unknown> {
   try {
     const res = await fetch(url, { signal });
     if (!res.ok) throw new Error(`Apple Music search failed (${res.status}).`);
-    json = await res.json();
+    return await res.json();
   } catch (err) {
     if (signal?.aborted) throw err;
     // Browsers often refuse Apple's answer to a direct request (no CORS headers);
     // Apple's documented way for web pages is JSONP.
-    json = await jsonp(url, signal);
+    return jsonp(url, signal);
   }
-  return parseItunesResults(json);
+}
+
+/**
+ * The song in an Apple Music link (as shared from the Music app), or undefined:
+ *   music.apple.com/jp/album/<name>/<album id>?i=<song id>
+ *   music.apple.com/jp/song/<name>/<song id>
+ * Text around the link (e.g. from a share sheet) is ignored.
+ */
+export function appleMusicSongRef(text: string): { id: string; store?: string } | undefined {
+  const raw = text.match(/(?:https?:\/\/)?(?:[\w-]+\.)?(?:music|itunes)\.apple\.com\/\S+/i)?.[0];
+  if (!raw) return undefined;
+  let u: URL;
+  try {
+    u = new URL(/^https?:/i.test(raw) ? raw : `https://${raw}`);
+  } catch {
+    return undefined;
+  }
+  const store = u.pathname.match(/^\/([a-z]{2})\//i)?.[1]?.toLowerCase();
+  const i = u.searchParams.get('i');
+  if (i && /^\d+$/.test(i)) return { id: i, store };
+  const song = u.pathname.match(/\/song\/(?:[^/]+\/)?(\d+)\/?$/)?.[1];
+  return song ? { id: song, store } : undefined;
+}
+
+/** Name, artist and artwork of the song in an Apple Music link. */
+export async function lookupAppleSong(text: string, fallbackStore: string, signal?: AbortSignal): Promise<AppleTrack | undefined> {
+  const ref = appleMusicSongRef(text);
+  if (!ref) return undefined;
+  const q = new URLSearchParams({ id: ref.id, entity: 'song', country: ref.store ?? fallbackStore });
+  return parseItunesResults(await itunes(`https://itunes.apple.com/lookup?${q}`, signal)).find((t) => String(t.id) === ref.id);
 }
 
 /**
