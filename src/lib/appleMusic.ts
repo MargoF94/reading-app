@@ -123,7 +123,7 @@ export function appleMusicSongRef(text: string): { id: string; store?: string } 
 export async function lookupAppleSong(text: string, fallbackStore: string, signal?: AbortSignal): Promise<AppleTrack | undefined> {
   const ref = appleMusicSongRef(text);
   if (!ref) return undefined;
-  const q = new URLSearchParams({ id: ref.id, entity: 'song', country: ref.store ?? fallbackStore });
+  const q = new URLSearchParams({ id: ref.id, country: ref.store ?? fallbackStore });
   return parseItunesResults(await itunes(`https://itunes.apple.com/lookup?${q}`, signal)).find((t) => String(t.id) === ref.id);
 }
 

@@ -63,7 +63,7 @@ describe('Apple Music links', () => {
   it('looks up name, artist and artwork', async () => {
     const { lookupAppleSong } = await import('../src/lib/appleMusic');
     const { vi } = await import('vitest');
-    const fetchMock = vi.fn(async () =>
+    const fetchMock = vi.fn(async (_url: string) =>
       new Response(JSON.stringify({ resultCount: 2, results: [
         { wrapperType: 'collection', collectionId: 1440822781, collectionName: 'Bon Iver' },
         { wrapperType: 'track', kind: 'song', trackId: 1440822792, trackName: 'Holocene', artistName: 'Bon Iver', collectionName: 'Bon Iver',
@@ -73,7 +73,7 @@ describe('Apple Music links', () => {
     vi.stubGlobal('fetch', fetchMock);
     const t = await lookupAppleSong('https://music.apple.com/jp/album/holocene/1440822781?i=1440822792', 'us');
     expect(t).toMatchObject({ title: 'Holocene', artist: 'Bon Iver', url: 'https://music.apple.com/jp/album/holocene/1440822781?i=1440822792' });
-    expect(String(fetchMock.mock.calls[0][0])).toBe('https://itunes.apple.com/lookup?id=1440822792&entity=song&country=jp');
+    expect(String(fetchMock.mock.calls[0][0])).toBe('https://itunes.apple.com/lookup?id=1440822792&country=jp');
     vi.unstubAllGlobals();
   });
 });
