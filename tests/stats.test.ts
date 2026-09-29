@@ -167,3 +167,30 @@ describe('fics in books', () => {
     expect(bookEquivalentWords({ ...settings, bookEquivalentPages: 300 })).toBe(82500);
   });
 });
+
+describe('genre pie', () => {
+  it('counts each book once under its main (first) genre; the top genres are all-time', async () => {
+    const { genreShares } = await import('../src/lib/stats');
+    const names: Record<string, string> = { f: 'Fantasy', r: 'Romance', m: 'Mystery', s: 'Sci-fi', h: 'Horror', w: 'Western' };
+    const name = (id: string) => names[id];
+    const b = (id: string, ...genreIds: string[]) => ({ id, genreIds }) as never;
+    const all = [
+      b('1', 'f', 'r'), b('2', 'f', 'r'), b('3', 'f'), // Fantasy ×3 (Romance only second)
+      b('4', 'r', 'f'), b('5', 'r'), // Romance ×2
+      b('6', 'm'), b('7', 's'), b('8', 'h'), // one each
+      b('9', 'w', 'm'), // Western is 5th: counts under Mystery, its next top genre
+      b('10', 'gone'), b('11'), // no known genre → Other
+    ];
+    expect(genreShares(all, all, name)).toEqual([
+      { label: 'Fantasy', value: 3, slot: 0 },
+      { label: 'Romance', value: 2, slot: 1 },
+      { label: 'Horror', value: 1, slot: 2 }, // ties: alphabetical
+      { label: 'Mystery', value: 2, slot: 3 },
+      { label: 'Other', value: 3, slot: -1 }, // Sci-fi (5th), no genre ×2
+    ]);
+    // A shorter period keeps the same slices, order and colors.
+    expect(genreShares([b('5', 'r')], all, name).map((x) => [x.label, x.value])).toEqual([
+      ['Fantasy', 0], ['Romance', 1], ['Horror', 0], ['Mystery', 0],
+    ]);
+  });
+});

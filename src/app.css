@@ -409,6 +409,15 @@ label {
   color: var(--text-2);
 }
 
+/* Pie slices (genres): the calendar's validated set, in its validated neighbour order; "Other" is gray. */
+:root {
+  --pie-1: var(--ev-scheduled);
+  --pie-2: var(--ev-bought);
+  --pie-3: var(--ev-finished);
+  --pie-4: var(--ev-started);
+  --pie-other: var(--upcoming);
+}
+
 /* Reading calendar: a colored frame + corner badge per kind of event
    (validated categorical set; the badge icon and a text label carry it too). */
 .ring {

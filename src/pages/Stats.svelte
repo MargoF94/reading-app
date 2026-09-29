@@ -1,9 +1,10 @@
 <script lang="ts">
   import BarList from '../components/charts/BarList.svelte';
   import ColumnChart, { type ColumnSeries } from '../components/charts/ColumnChart.svelte';
+  import PieChart from '../components/charts/PieChart.svelte';
   import StatTile from '../components/charts/StatTile.svelte';
   import GoalsCard from '../components/GoalsCard.svelte';
-  import { bookEquivalentWords, compact, computeStats, PRESETS, presetPeriod, type Period, type PresetId } from '../lib/stats';
+  import { bookEquivalentWords, compact, computeStats, genreShares, PRESETS, presetPeriod, type Period, type PresetId } from '../lib/stats';
   import { router } from '../lib/router.svelte';
   import { library } from '../lib/store.svelte';
   import type { ItemType } from '../lib/types';
@@ -11,7 +12,11 @@
 
   // Filters live in the URL (?p=…&t=…&from=…&to=…) so Back keeps them.
   const q = $derived(router.route.query);
-  const preset = $derived((q.get('p') ?? 'this-year') as PresetId | 'custom');
+  // An unknown value (e.g. an old or mistyped link) falls back to This year.
+  const preset = $derived.by<PresetId | 'custom'>(() => {
+    const p = q.get('p');
+    return p === 'custom' || PRESETS.some((x) => x.id === p) ? (p as PresetId | 'custom') : 'this-year';
+  });
   const type = $derived<ItemType | undefined>(q.get('t') === 'book' || q.get('t') === 'fic' ? (q.get('t') as ItemType) : undefined);
   const period = $derived<Period>(
     preset === 'custom'
@@ -22,6 +27,21 @@
     return from && to && from > to ? { from: to, to: from } : { from, to };
   }
   const stats = $derived(computeStats(library.data, library.settings, { period, type, today: today() }));
+
+  // Pies: books vs fics, and books by genre (each finished item counted once).
+  const PIE_COLORS = ['var(--pie-1)', 'var(--pie-2)', 'var(--pie-3)', 'var(--pie-4)'];
+  const finishedBooksInPeriod = $derived([...new Map(stats.finished.filter((f) => f.item.type === 'book').map((f) => [f.item.id, f.item])).values()]);
+  const allTimeBooks = $derived.by(() => {
+    const ids = new Set(library.data.readings.filter((r) => !r.deleted && r.outcome === 'finished').map((r) => r.itemId));
+    return library.items.filter((i) => i.type === 'book' && ids.has(i.id));
+  });
+  const genreSlices = $derived(
+    genreShares(finishedBooksInPeriod, allTimeBooks, (id) => library.data.genres.find((g) => g.id === id && !g.deleted)?.name).map((g) => ({
+      label: g.label,
+      value: g.value,
+      color: g.slot >= 0 ? PIE_COLORS[g.slot] : 'var(--pie-other)',
+    })),
+  );
   const year = new Date().getFullYear();
   const currency = $derived(library.settings.displayCurrency);
 
@@ -138,6 +158,29 @@
 {/if}
 
 <div class="charts">
+  {#if !type}
+    <section class="card">
+      <PieChart
+        title="Books and fics read"
+        caption="Finished in this period."
+        slices={[
+          { label: 'Books', value: stats.finishedBooks, color: 'var(--series-1)' },
+          { label: 'Fics', value: stats.finishedFics, color: 'var(--series-2)' },
+        ]}
+        unit="finished"
+      />
+    </section>
+  {/if}
+  {#if type !== 'fic'}
+    <section class="card">
+      <PieChart
+        title="Books read by genre"
+        caption="Each book counts once, under its main (first) genre. Your 4 most-read genres keep their colors; the rest, and books without a genre, are Other."
+        slices={genreSlices}
+        unit="books"
+      />
+    </section>
+  {/if}
   <section class="card"><ColumnChart title="Finished {perLabel}" {labels} series={finishedSeries} /></section>
   <section class="card">
     <ColumnChart

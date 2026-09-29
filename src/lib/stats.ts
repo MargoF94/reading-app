@@ -410,3 +410,40 @@ export function compact(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
   return String(Math.round(n));
 }
+
+/** Genre slices for a pie: the reader's top genres of all time (stable across periods), plus "Other". */
+export interface GenreShare {
+  label: string;
+  value: number;
+  slot: number; // 0-based color slot; -1 for "Other"
+}
+
+/**
+ * Each finished book counts once, under its first-listed genre (for Goodreads
+ * imports, the one most readers tagged). The top genres are ranked by those
+ * main genres over every finished book, so their order and colors don't change
+ * with the period. A book whose main genre isn't in the top counts under its
+ * next listed genre that is, otherwise "Other" (as do books with no genre).
+ */
+export function genreShares(books: Item[], allTimeBooks: Item[], genreName: (id: string) => string | undefined, slots = 4): GenreShare[] {
+  const main = (b: Item) => b.genreIds.find((g) => genreName(g));
+  const counts = new Map<string, number>();
+  for (const b of allTimeBooks) {
+    const g = main(b);
+    if (g) counts.set(g, (counts.get(g) ?? 0) + 1);
+  }
+  const top = [...counts]
+    .sort((a, b) => b[1] - a[1] || (genreName(a[0]) ?? '').localeCompare(genreName(b[0]) ?? ''))
+    .slice(0, slots)
+    .map(([id]) => id);
+  const values = top.map(() => 0);
+  let other = 0;
+  for (const b of books) {
+    const g = b.genreIds.find((id) => top.includes(id));
+    if (g) values[top.indexOf(g)]++;
+    else other++;
+  }
+  const out: GenreShare[] = top.map((id, i) => ({ label: genreName(id)!, value: values[i], slot: i }));
+  if (other) out.push({ label: 'Other', value: other, slot: -1 });
+  return out;
+}
