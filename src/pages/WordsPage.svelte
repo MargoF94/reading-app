@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from '../components/Icon.svelte';
+  import AllQuotes from '../components/quotes/AllQuotes.svelte';
   import WordEntry from '../components/vocab/WordEntry.svelte';
   import WordForm from '../components/vocab/WordForm.svelte';
   import { LANGUAGE_NAME } from '../lib/constants';
@@ -8,7 +9,13 @@
   import type { VocabWord } from '../lib/types';
   import { normalize, plural } from '../lib/util';
 
-  // Every learned word. Order added by default; A–Z on request.
+  // Two tabs: every learned word (order added by default; A–Z on request), and every saved quote.
+  const tab = $derived(router.route.query.get('tab') === 'quotes' ? 'quotes' : 'words');
+  const TABS = [
+    ['words', 'Words'],
+    ['quotes', 'Quotes'],
+  ] as const;
+
   type Sort = 'added' | 'newest' | 'az';
   const sort = $derived<Sort>((['added', 'newest', 'az'] as const).find((s) => s === router.route.query.get('sort')) ?? 'added');
   const lang = $derived(router.route.query.get('lang') ?? '');
@@ -52,12 +59,21 @@
 </script>
 
 <div class="row head">
-  <h1>Vocabulary</h1>
-  <span class="small muted">{plural(library.vocabulary.length, 'word')}</span>
+  <h1>{tab === 'quotes' ? 'Quotes' : 'Vocabulary'}</h1>
+  <span class="small muted">{tab === 'quotes' ? plural(library.quotes.length, 'quote') : plural(library.vocabulary.length, 'word')}</span>
 </div>
-<p class="small muted intro">Words you’ve learned from your books and fics.</p>
+<div class="seg" role="tablist" aria-label="Show">
+  {#each TABS as [t, label] (t)}
+    <button type="button" role="tab" aria-selected={tab === t} class:on={tab === t} onclick={() => router.go(t === 'quotes' ? '/words?tab=quotes' : '/words', true)}>{label}</button>
+  {/each}
+</div>
+<p class="small muted intro">
+  {tab === 'quotes' ? 'Passages you’ve saved from your books and fics.' : 'Words you’ve learned from your books and fics.'}
+</p>
 
-{#if library.vocabulary.length === 0}
+{#if tab === 'quotes'}
+  <AllQuotes />
+{:else if library.vocabulary.length === 0}
   <div class="empty">
     <p>No words yet.</p>
     <p class="small">Open a book or fic and use <strong>Add a word</strong> in its Words section. The app looks the word up and you choose the meaning to keep.</p>
@@ -134,7 +150,33 @@
   }
 
   .intro {
-    margin: 0.2rem 0 0;
+    margin: 0.5rem 0 0;
+  }
+
+  .seg {
+    display: inline-flex;
+    margin-top: 0.4rem;
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+  }
+
+  .seg button {
+    border: none;
+    background: none;
+    font: inherit;
+    font-size: 0.9rem;
+    padding: 0.35em 1.1em;
+    border-radius: 5px;
+    color: var(--text-2);
+    cursor: pointer;
+  }
+
+  .seg button.on {
+    background: var(--surface);
+    color: var(--text);
+    font-weight: 600;
+    box-shadow: var(--shadow);
   }
 
   .filters {

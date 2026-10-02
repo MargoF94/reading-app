@@ -5,6 +5,7 @@
   import ItemLists from '../components/ItemLists.svelte';
   import Songs from '../components/Songs.svelte';
   import ItemWords from '../components/vocab/ItemWords.svelte';
+  import ItemQuotes from '../components/quotes/ItemQuotes.svelte';
   import ItemSchedule from '../components/calendar/ItemSchedule.svelte';
   import ItemFiles from '../components/ItemFiles.svelte';
   import { deleteItemFile } from '../lib/itemFiles';
@@ -271,6 +272,8 @@
       <ItemLists {item} />
 
       <Songs {item} />
+
+      <ItemQuotes {item} />
 
       <ItemWords {item} />
 

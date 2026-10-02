@@ -20,6 +20,7 @@ import type {
   ReadingSession,
   Status,
   VocabWord,
+  Quote,
 } from './types';
 import { collator, newId, normalize, nowIso, today } from './util';
 
@@ -59,6 +60,11 @@ class Library {
   /** Learned words, in the order they were added. */
   vocabulary = $derived(
     this.data.vocabulary.filter((w) => !w.deleted).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+  );
+
+  /** Saved quotes, in the order they were added. */
+  quotes = $derived(
+    this.data.quotes.filter((q) => !q.deleted).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
   );
 
   /** Planned reading sessions. */
@@ -241,6 +247,7 @@ class Library {
   async deleteItem(item: Item): Promise<void> {
     await this.remove('readings', this.readings(item.id));
     await this.remove('vocabulary', this.wordsFor(item.id));
+    await this.remove('quotes', this.quotesFor(item.id));
     await this.remove('schedule', this.schedule.filter((s) => s.itemId === item.id));
     await this.remove('items', [item]);
     await discardCover(item.coverUrl);
@@ -327,6 +334,20 @@ class Library {
 
   async deleteWord(word: VocabWord): Promise<void> {
     await this.remove('vocabulary', [word]);
+  }
+
+  // ---- quotes -------------------------------------------------------------
+
+  quotesFor(itemId: string): Quote[] {
+    return this.quotes.filter((q) => q.itemId === itemId);
+  }
+
+  async saveQuote(quote: Quote): Promise<void> {
+    await this.put('quotes', [quote]);
+  }
+
+  async deleteQuote(quote: Quote): Promise<void> {
+    await this.remove('quotes', [quote]);
   }
 
   // ---- lists ------------------------------------------------------------

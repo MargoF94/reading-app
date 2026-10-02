@@ -207,6 +207,14 @@ export interface VocabWord extends BaseRecord {
   note?: string; // e.g. the sentence it appeared in
 }
 
+/** A passage saved from a book or fic. */
+export interface Quote extends BaseRecord {
+  itemId: string;
+  text: string;
+  location?: string; // where it is: "p. 42", "ch. 3", "loc. 1234"
+  note?: string; // the reader's own thoughts on it
+}
+
 export type Repeat = 'daily' | 'weekdays' | 'weekly';
 
 /** Planned reading time for a book or fic. Dates and times are local ("floating"). */
@@ -255,6 +263,7 @@ export interface Collections {
   settings: Settings[];
   vocabulary: VocabWord[];
   schedule: ReadingSession[];
+  quotes: Quote[];
 }
 
 export type CollectionName = keyof Collections;
@@ -272,12 +281,13 @@ export const COLLECTION_NAMES: CollectionName[] = [
   'settings',
   'vocabulary',
   'schedule',
+  'quotes',
 ];
 
 /** Shape of library.json. */
 export interface LibraryFile extends Collections {
   app: 'reading-app';
-  /** 2 added `vocabulary`, 3 `schedule`; older app versions refuse newer files instead of dropping data. */
-  schema: 3;
+  /** 2 added `vocabulary`, 3 `schedule`, 4 `quotes`; older app versions refuse newer files instead of dropping data. */
+  schema: 4;
   savedAt: string;
 }

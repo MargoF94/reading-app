@@ -14,6 +14,7 @@ export function emptyCollections(): Collections {
     settings: [],
     vocabulary: [],
     schedule: [],
+    quotes: [],
   };
 }
 
@@ -55,7 +56,7 @@ function sortKeys(value: unknown): unknown {
 
 export function toLibraryFile(c: Collections, savedAt: string): LibraryFile {
   const sorted = mergeCollections(c, emptyCollections());
-  return { app: 'reading-app', schema: 3, savedAt, ...sorted };
+  return { app: 'reading-app', schema: 4, savedAt, ...sorted };
 }
 
 /** Accepts library.json (or an exported backup) and returns its collections. */
@@ -64,7 +65,7 @@ export function parseLibraryFile(text: string): Collections {
   if (!data || typeof data !== 'object' || data.app !== 'reading-app') {
     throw new Error('This file is not a Reading Log library.');
   }
-  if (data.schema > 3) {
+  if (data.schema > 4) {
     throw new Error('This library was saved by a newer version of the app. Reload the page to update.');
   }
   const out = emptyCollections();
