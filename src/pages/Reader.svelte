@@ -442,6 +442,25 @@
     router.back(`/item/${itemId}`);
   }
 
+  /**
+   * The colour iPhones use for the very top of the screen (status bar area). Different
+   * iOS versions take it from the theme-color tag or from the page background, so both
+   * follow the reader's theme. The tag is replaced, not edited: some versions only notice new tags.
+   */
+  function setTopColor(color: string) {
+    const old = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    const meta = document.createElement('meta');
+    meta.name = 'theme-color';
+    meta.content = color;
+    if (old) old.replaceWith(meta);
+    else document.head.append(meta);
+    if (color !== themeColorDefault) {
+      document.documentElement.style.backgroundColor = color;
+      document.body.style.backgroundColor = color;
+    }
+  }
+  const themeColorDefault = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.content ?? '';
+
   // ---- start ----
 
   onMount(() => {
@@ -483,7 +502,9 @@
 
     return () => {
       html.style.overflow = overflow;
-      if (meta && themeColor) meta.content = themeColor;
+      if (themeColor) setTopColor(themeColor);
+      html.style.backgroundColor = '';
+      document.body.style.backgroundColor = '';
       document.removeEventListener('visibilitychange', flush);
       window.removeEventListener('pagehide', flush);
       clearInterval(timer);
@@ -495,8 +516,7 @@
 
   // The phone's status bar matches the page colour.
   $effect(() => {
-    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-    if (meta) meta.content = colors.bg;
+    setTopColor(colors.bg);
   });
 
   // Searches are cleared from the pages when the contents sheet closes.
