@@ -261,6 +261,7 @@ class Library {
     await this.remove('schedule', this.schedule.filter((s) => s.itemId === item.id));
     await this.remove('items', [item]);
     await discardCover(item.coverUrl);
+    for (const img of item.images ?? []) await discardCover(img.url);
   }
 
   /** Adds many records at once (imports). */

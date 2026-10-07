@@ -113,6 +113,13 @@ export interface ReaderBookmark {
   at: string;
 }
 
+export interface ItemImage {
+  id: string;
+  url: string; // "repo:images/…" (uploaded, in the data repo) or an https link
+  caption?: string;
+  addedAt: string;
+}
+
 export interface ReaderPosition {
   cfi: string; // EPUB CFI of the place on the page
   fraction: number; // 0–1 through the book
@@ -140,6 +147,8 @@ export interface Item extends BaseRecord {
   wordCountEstimated?: boolean;
   notes?: string;
   songs?: Song[];
+  /** Pictures kept with the book, e.g. character references. */
+  images?: ItemImage[];
   files?: StoredFile[];
   /** Shared by editions of the same work (e.g. a Japanese original and its translation). */
   workKey?: string;

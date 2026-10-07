@@ -10,6 +10,7 @@
   import ItemFiles from '../components/ItemFiles.svelte';
   import ReadButton from '../components/reader/ReadButton.svelte';
   import ItemTime from '../components/ItemTime.svelte';
+  import ItemImages from '../components/images/ItemImages.svelte';
   import { deleteItemFile } from '../lib/itemFiles';
   import { sync } from '../lib/sync.svelte';
   import ReadingDates from '../components/ReadingDates.svelte';
@@ -275,6 +276,8 @@
       <Editions {item} />
 
       <ItemLists {item} />
+
+      <ItemImages {item} />
 
       <Songs {item} />
 

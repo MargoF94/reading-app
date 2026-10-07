@@ -1,4 +1,4 @@
-// Cover photos uploaded by hand. Stored locally (IndexedDB) and as files in the
+// Cover photos (and pictures attached to books) uploaded by hand. Stored locally (IndexedDB) and as files in the
 // data repo (covers/…), referenced from items as "repo:covers/…".
 import { db, getMeta, setMeta } from './db';
 import { deletePath, getBlob, putBlob, type SyncConfig } from './github';
@@ -30,9 +30,17 @@ export async function resizeImage(file: Blob, maxW = 400, maxH = 600): Promise<B
 }
 
 /** Saves a new cover for an item; returns the value for item.coverUrl. */
-export async function saveCover(itemId: string, blob: Blob): Promise<string> {
+export function saveCover(itemId: string, blob: Blob): Promise<string> {
+  return saveRepoImage('covers', itemId, blob);
+}
+
+/**
+ * Keeps an image on this device and queues it for the data repo (folder/…);
+ * returns its "repo:" reference. Pictures attached to books use the same storage as covers.
+ */
+export async function saveRepoImage(folder: 'covers' | 'images', itemId: string, blob: Blob): Promise<string> {
   const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
-  const path = `covers/${itemId}-${Date.now().toString(36)}.${ext}`;
+  const path = `${folder}/${itemId}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}.${ext}`;
   await db.coverFiles.put({ path, blob, pending: true });
   return REPO_PREFIX + path;
 }
@@ -82,12 +90,12 @@ async function loadBlob(path: string): Promise<Blob | null> {
 export async function syncCovers(cfg: SyncConfig): Promise<void> {
   const pending = await db.coverFiles.filter((c) => c.pending).toArray();
   for (const c of pending) {
-    await putBlob(cfg, c.path, c.blob, 'Add cover');
+    await putBlob(cfg, c.path, c.blob, c.path.startsWith('images/') ? 'Add picture' : 'Add cover');
     await db.coverFiles.update(c.path, { pending: false });
   }
   const queue = (await getMeta<string[]>(DELETE_KEY)) ?? [];
   for (const path of queue) {
-    await deletePath(cfg, path, 'Remove cover');
+    await deletePath(cfg, path, path.startsWith('images/') ? 'Remove picture' : 'Remove cover');
     const rest = ((await getMeta<string[]>(DELETE_KEY)) ?? []).filter((p) => p !== path);
     await setMeta(DELETE_KEY, rest);
   }
