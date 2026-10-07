@@ -4,7 +4,7 @@
 import { View, type RelocateDetail, type SearchResult, type TocItem } from 'foliate-js/view.js';
 import { collapse, compare } from 'foliate-js/epubcfi.js';
 import { Overlayer } from 'foliate-js/overlayer.js';
-import { isJapanese, readerCss, sentenceAt, THEME_COLORS, type FromFrame, type ReaderPrefs, type TocEntry, type ToFrame } from '../lib/reader';
+import { CUSTOM_FONT, isJapanese, readerCss, sentenceAt, THEME_COLORS, type FromFrame, type ReaderPrefs, type TocEntry, type ToFrame } from '../lib/reader';
 
 const post = (m: FromFrame) => parent.postMessage(m, location.origin);
 
@@ -16,6 +16,23 @@ let annotations = new Set<string>(); // cfis of saved quotes, underlined
 let bookmarks: string[] = [];
 let lastRelocate: RelocateDetail | null = null;
 let annotationTapped = false;
+
+// Fonts: the bundled Literata (its CSS with absolute URLs, for the book's pages) and a
+// font file loaded on this device.
+let literataFaces = '';
+let customFace = '';
+let customUrl = '';
+fetch(new URL('fonts/literata.css', location.href))
+  .then((r) => (r.ok ? r.text() : ''))
+  .then((css) => {
+    literataFaces = css.replace(/url\('([^']+)'\)/g, (_, f) => `url('${new URL(`fonts/${f}`, location.href).href}')`);
+    if (view?.renderer && prefs) view.renderer.setStyles(readerCss(prefs, lang, faces(prefs)));
+  })
+  .catch(() => {});
+
+function faces(p: ReaderPrefs): string {
+  return p.font === 'literata' ? literataFaces : p.font === 'custom' ? customFace : '';
+}
 
 function textOf(v: unknown): string {
   if (typeof v === 'string') return v;
@@ -47,7 +64,7 @@ function applyPrefs(p: ReaderPrefs) {
     void open(file, view.lastLocation?.cfi, p);
     return;
   }
-  r.setStyles(readerCss(p, lang));
+  r.setStyles(readerCss(p, lang, faces(p)));
 }
 
 function flatten(items: TocItem[] | undefined, depth = 0, out: TocEntry[] = []): TocEntry[] {
@@ -201,6 +218,16 @@ function bookmarkOn(pageRange: string): string | undefined {
   }
 }
 
+/**
+ * Location numbers on the scale a Kindle uses (one per ~128 bytes of the book;
+ * the renderer counts per 1,500), so they feel familiar. Approximate, not Kindle's own.
+ */
+function kindleLocation(d: RelocateDetail): { current: number; total: number } | undefined {
+  if (!d.location?.total) return undefined;
+  const total = Math.max(1, Math.round((d.location.total * 1500) / 128));
+  return { current: Math.min(total, Math.max(1, Math.ceil(d.fraction * total))), total };
+}
+
 function onRelocate(d: RelocateDetail) {
   lastRelocate = d;
   const r = view?.renderer;
@@ -221,6 +248,7 @@ function onRelocate(d: RelocateDetail) {
     page: paged ? Math.min(Math.max(r.page, 1), r.pages - 2) : undefined,
     pages: paged ? r.pages - 2 : undefined,
     pageCfi,
+    location: kindleLocation(d),
     // Paragraphs run together in the page's text; put a space back after sentence ends.
     excerpt:
       d.range
@@ -299,6 +327,12 @@ addEventListener('message', (e: MessageEvent<ToFrame>) => {
     case 'bookmarks':
       bookmarks = m.cfis;
       if (lastRelocate) onRelocate(lastRelocate);
+      break;
+    case 'font':
+      if (customUrl) URL.revokeObjectURL(customUrl);
+      customUrl = m.file ? URL.createObjectURL(m.file) : '';
+      customFace = customUrl ? `@font-face { font-family: '${CUSTOM_FONT}'; src: url('${customUrl}'); font-display: swap; }` : '';
+      if (view?.renderer && prefs) view.renderer.setStyles(readerCss(prefs, lang, faces(prefs)));
       break;
     case 'deselect':
       view?.deselect();

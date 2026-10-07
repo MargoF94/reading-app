@@ -16,6 +16,7 @@ declare module 'foliate-js/view.js' {
     fraction: number;
     cfi: string;
     range?: Range;
+    location?: { current: number; next: number; total: number };
     tocItem?: { label?: string; href?: string };
   }
   export interface SearchResult {

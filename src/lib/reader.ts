@@ -4,11 +4,16 @@ import { activeReading } from './reading';
 import type { Item, Reading, StoredFile } from './types';
 import { newId } from './util';
 
-export type ReaderTheme = 'light' | 'sepia' | 'dark';
-export type ReaderFont = 'serif' | 'sans' | 'book';
+export type ReaderTheme = 'white' | 'light' | 'sepia' | 'dark';
+/** literata: bundled, close to Kindle's Bookerly; custom: a font file loaded on this device. */
+export type ReaderFont = 'literata' | 'serif' | 'sans' | 'book' | 'custom';
 export type ReaderLayout = 'pages' | 'scroll';
 /** Japanese books only: keep the book's direction, or force one. */
 export type ReaderWriting = 'book' | 'vertical' | 'horizontal';
+
+/** What the bottom-left corner shows; tap it to switch, like on a Kindle. */
+export type ReaderFooter = 'location' | 'page' | 'chapter-time' | 'book-time' | 'off';
+export const FOOTER_ORDER: ReaderFooter[] = ['location', 'page', 'chapter-time', 'book-time', 'off'];
 
 export interface ReaderPrefs {
   fontSize: number; // percent of the book's own size
@@ -18,16 +23,18 @@ export interface ReaderPrefs {
   font: ReaderFont;
   layout: ReaderLayout;
   writing: ReaderWriting;
+  footer: ReaderFooter;
 }
 
 export const DEFAULT_PREFS: ReaderPrefs = {
   fontSize: 100,
-  lineHeight: 1.6,
+  lineHeight: 1.5,
   margin: 4,
-  theme: 'sepia',
-  font: 'serif',
+  theme: 'white',
+  font: 'literata',
   layout: 'pages',
   writing: 'book',
+  footer: 'location',
 };
 
 export const PREF_LIMITS = {
@@ -47,14 +54,16 @@ export function cleanPrefs(raw: unknown): ReaderPrefs {
     fontSize: clamp(p.fontSize, PREF_LIMITS.fontSize, DEFAULT_PREFS.fontSize),
     lineHeight: Math.round(clamp(p.lineHeight, PREF_LIMITS.lineHeight, DEFAULT_PREFS.lineHeight) * 10) / 10,
     margin: clamp(p.margin, PREF_LIMITS.margin, DEFAULT_PREFS.margin),
-    theme: pick(p.theme, ['light', 'sepia', 'dark'] as const, DEFAULT_PREFS.theme),
-    font: pick(p.font, ['serif', 'sans', 'book'] as const, DEFAULT_PREFS.font),
+    theme: pick(p.theme, ['white', 'light', 'sepia', 'dark'] as const, DEFAULT_PREFS.theme),
+    font: pick(p.font, ['literata', 'serif', 'sans', 'book', 'custom'] as const, DEFAULT_PREFS.font),
     layout: pick(p.layout, ['pages', 'scroll'] as const, DEFAULT_PREFS.layout),
     writing: pick(p.writing, ['book', 'vertical', 'horizontal'] as const, DEFAULT_PREFS.writing),
+    footer: pick(p.footer, FOOTER_ORDER, DEFAULT_PREFS.footer),
   };
 }
 
 export const THEME_COLORS: Record<ReaderTheme, { bg: string; fg: string; link: string; dark: boolean }> = {
+  white: { bg: '#ffffff', fg: '#111111', link: '#1a4f8b', dark: false },
   light: { bg: '#fbfbfa', fg: '#1d2227', link: '#3d5467', dark: false },
   sepia: { bg: '#f3ead8', fg: '#3b2f22', link: '#7a4f22', dark: false },
   dark: { bg: '#16191c', fg: '#c9cdd1', link: '#9fb6c9', dark: true },
@@ -73,8 +82,15 @@ const FONTS: Record<'serif' | 'sans', { latin: string; ja: string }> = {
 
 export const isJapanese = (lang: string | undefined): boolean => /^ja\b/i.test(lang ?? '');
 
-/** Styles placed inside the book's pages. The reader's choices override the book's own. */
-export function readerCss(prefs: ReaderPrefs, lang?: string): string {
+/** Families for the bundled and loaded fonts; Japanese falls back to a Japanese serif. */
+export const LITERATA = 'Literata';
+export const CUSTOM_FONT = 'ReaderCustomFont';
+
+/**
+ * Styles placed inside the book's pages. The reader's choices override the book's own.
+ * `fontFaces` holds @font-face rules for the bundled or loaded font (with absolute URLs).
+ */
+export function readerCss(prefs: ReaderPrefs, lang?: string, fontFaces = ''): string {
   const c = THEME_COLORS[prefs.theme];
   const ja = isJapanese(lang);
   const cjk = ja || /^(zh|ko)\b/i.test(lang ?? '');
@@ -92,7 +108,10 @@ export function readerCss(prefs: ReaderPrefs, lang?: string): string {
   ];
   if (!cjk) lines.push('p, li, blockquote, dd { text-align: justify; hyphens: auto; -webkit-hyphens: auto; widows: 2; orphans: 2; }');
   if (prefs.font !== 'book') {
-    const family = FONTS[prefs.font][ja ? 'ja' : 'latin'];
+    const own = prefs.font === 'literata' ? LITERATA : prefs.font === 'custom' ? CUSTOM_FONT : undefined;
+    const base = FONTS[prefs.font === 'sans' ? 'sans' : 'serif'][ja ? 'ja' : 'latin'];
+    const family = own ? `'${own}', ${base}` : base;
+    if (fontFaces) lines.splice(1, 0, fontFaces); // after @namespace, which must come first
     lines.push(`body, body *:not(code):not(pre):not(kbd):not(samp):not(rt) { font-family: ${family} !important; }`);
   }
   if (ja && prefs.writing !== 'book') {
@@ -128,6 +147,8 @@ export type ToFrame =
   | { type: 'search'; query: string }
   | { type: 'clear-search' }
   | { type: 'deselect' }
+  /** A font file loaded on this device (null = none). */
+  | { type: 'font'; file: Blob | null }
   /** Saved quotes in this book, underlined on the page. */
   | { type: 'annotations'; cfis: string[] }
   | { type: 'bookmarks'; cfis: string[] };
@@ -148,6 +169,8 @@ export type FromFrame =
       excerpt?: string;
       /** The bookmark (its cfi) on this page, if any. */
       bookmark?: string;
+      /** Location numbers through the whole book (like a Kindle's). */
+      location?: { current: number; total: number };
     }
   /** An underlined quote was tapped. */
   | { type: 'annotation'; cfi: string }

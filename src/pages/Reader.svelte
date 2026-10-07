@@ -12,6 +12,7 @@
   import {
     cleanPrefs,
     DEFAULT_PREFS,
+    FOOTER_ORDER,
     percentOf,
     quoteLocation,
     selectedWord,
@@ -48,6 +49,7 @@
   let error = $state('');
   let prefs = $state<ReaderPrefs>({ ...DEFAULT_PREFS });
   let controls = $state(false);
+  let contentsTab = $state<'chapters' | 'search'>('chapters');
   let sheet = $state<null | 'settings' | 'contents' | 'quote' | 'word' | 'edit-quote'>(null);
   // Text selected in the book, to save as a quote or look up as a word.
   let selection = $state<{ text: string; cfi?: string; sentence?: string } | null>(null);
@@ -69,7 +71,9 @@
     pageCfi?: string;
     excerpt?: string;
     bookmark?: string;
+    location?: { current: number; total: number };
   }>({ fraction: 0 });
+  let lastCfi = '';
   let toc = $state.raw<TocEntry[]>([]);
   let bookLang = $state('');
   let rtl = $state(false);
@@ -150,6 +154,7 @@
     phase = 'opening';
     // A link from a saved quote opens the book at the quote; otherwise where reading stopped.
     const at = router.route.query.get('at') ?? undefined;
+    if (customFont) post({ type: 'font', file: customFont.blob });
     post({ type: 'open', file, cfi: at ?? stored?.position?.cfi, prefs: $state.snapshot(prefs) });
   }
 
@@ -279,7 +284,9 @@
           pageCfi: m.pageCfi,
           excerpt: m.excerpt,
           bookmark: m.bookmark,
+          location: m.location,
         };
+        lastCfi = m.cfi;
         pending = { cfi: m.cfi, fraction: m.fraction };
         saveSoon();
         break;
@@ -331,6 +338,68 @@
     e.preventDefault();
   }
 
+  // ---- Kindle-style corners: clock on top, a switchable reading-info line below ----
+
+  let clockText = $state('');
+  const tickClock = () =>
+    (clockText = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+  tickClock();
+  $effect(() => {
+    const t = setInterval(tickClock, 15_000);
+    return () => clearInterval(t);
+  });
+
+  const locationText = $derived(loc.location ? `Location ${loc.location.current.toLocaleString('en-US')} of ${loc.location.total.toLocaleString('en-US')}` : '');
+  const footerText = $derived.by(() => {
+    switch (prefs.footer) {
+      case 'location':
+        return locationText;
+      case 'page':
+        return loc.pages ? `Page ${loc.page} of ${loc.pages} in chapter` : '';
+      case 'chapter-time':
+        return leftInChapter !== undefined ? `${formatDuration(leftInChapter)} left in chapter` : 'Learning reading speed';
+      case 'book-time':
+        return leftInBook !== undefined ? `${formatDuration(leftInBook)} left in book` : 'Learning reading speed';
+      default:
+        return '';
+    }
+  });
+
+  function cycleFooter() {
+    const i = FOOTER_ORDER.indexOf(prefs.footer);
+    setPrefs({ ...prefs, footer: FOOTER_ORDER[(i + 1) % FOOTER_ORDER.length] });
+  }
+
+  // "Back to …" after jumping (contents, slider, search, bookmarks), like a Kindle.
+  let jumpBack = $state<{ cfi: string; label: string } | null>(null);
+  function rememberJump() {
+    if (!lastCfi) return;
+    jumpBack = { cfi: lastCfi, label: loc.location ? loc.location.current.toLocaleString('en-US') : `${percent}%` };
+  }
+  function goBack() {
+    if (!jumpBack) return;
+    const back = jumpBack;
+    rememberJump();
+    post({ type: 'goto', target: back.cfi });
+  }
+
+  // A font file loaded on this device, used when the font is "Your font".
+  const FONT_KEY = 'readerFont';
+  let customFont = $state<{ name: string; blob: Blob } | null>(null);
+  async function loadFontFile(file: File) {
+    if (file.size > 15 * 1024 * 1024) return toasts.show('That font file is too large.', 'error');
+    customFont = { name: file.name, blob: file };
+    await setMeta(FONT_KEY, { name: file.name, blob: file });
+    post({ type: 'font', file });
+    setPrefs({ ...prefs, font: 'custom' });
+  }
+  async function removeFontFile() {
+    customFont = null;
+    await setMeta(FONT_KEY, null);
+    post({ type: 'font', file: null });
+    if (prefs.font === 'custom') setPrefs({ ...prefs, font: 'literata' });
+  }
+
   // ---- controls ----
 
   const savePrefs = debounce((p: ReaderPrefs) => void setMeta(PREFS_KEY, p), 400);
@@ -341,6 +410,7 @@
   }
 
   function go(target: string) {
+    rememberJump();
     post({ type: 'goto', target });
     sheet = null;
     controls = false;
@@ -392,6 +462,8 @@
 
     void (async () => {
       prefs = cleanPrefs(await getMeta(PREFS_KEY));
+      customFont = (await getMeta<{ name: string; blob: Blob } | null>(FONT_KEY)) ?? null;
+      if (prefs.font === 'custom' && !customFont) prefs = { ...prefs, font: 'literata' };
       if (!stored) {
         phase = 'error';
         error = 'This file isn’t in your library any more.';
@@ -500,17 +572,29 @@
       <button type="button" class="btn ghost icon small" aria-label="Clear selection" onclick={clearSelection}><Icon name="close" size={16} /></button>
     </div>
   {:else if phase === 'reading' && !controls && !sheet}
-    <div class="status-line" aria-hidden="true">
-      <span class="ch">{loc.chapter ?? ''}{loc.pages ? ` · ${loc.page} / ${loc.pages}` : ''}</span>
-      <span class="right">{leftInChapter !== undefined ? `${formatDuration(leftInChapter)} left in chapter · ` : ''}{percent}%</span>
+    <div class="clock" aria-hidden="true">{clockText}</div>
+    <div class="status-line">
+      <button type="button" class="corner" onclick={cycleFooter} aria-label="Reading info: {footerText || 'hidden'}. Tap to change.">
+        {footerText || '\u00a0'}
+      </button>
+      <span class="right" aria-hidden="true">{percent}%</span>
     </div>
   {/if}
 
   {#if controls || phase !== 'reading'}
     <header class="bar">
+      <div class="bar-row">
       <button type="button" class="btn ghost icon" aria-label="Close the book" onclick={close}><Icon name="back" size={22} /></button>
-      <span class="title">{item?.title ?? ''}</span>
       {#if phase === 'reading'}
+        <button type="button" class="btn ghost icon" aria-label="Contents" onclick={() => { contentsTab = 'chapters'; sheet = 'contents'; }}>
+          <Icon name="list" size={22} />
+        </button>
+      {/if}
+      <span class="spacer"></span>
+      {#if phase === 'reading'}
+        <button type="button" class="btn ghost icon" aria-label="Search in book" onclick={() => { contentsTab = 'search'; sheet = 'contents'; }}>
+          <Icon name="search" size={22} />
+        </button>
         <button
           type="button"
           class="btn ghost icon bm"
@@ -521,20 +605,22 @@
         >
           <Icon name="bookmark" size={22} />
         </button>
-        <button type="button" class="btn ghost icon" aria-label="Contents and search" onclick={() => (sheet = 'contents')}>
-          <Icon name="list" size={22} />
-        </button>
         <button type="button" class="btn ghost icon aa" aria-label="Reading settings" onclick={() => (sheet = 'settings')}>Aa</button>
       {/if}
+      </div>
+      <div class="title">{item?.title ?? ''}</div>
     </header>
   {/if}
 
   {#if controls && phase === 'reading' && !sheet}
     <footer class="bottom">
-      <div class="row info small">
-        <strong class="ch">{loc.chapter ?? item?.title ?? ''}</strong>
-        {#if loc.pages}<span class="muted">page {loc.page} of {loc.pages} in chapter</span>{/if}
+      <div class="info small">
+        <span>{[locationText, `${percent}%`].filter(Boolean).join(' · ')}</span>
+        <span class="muted ch">{loc.chapter ?? ''}{leftInBook !== undefined ? ` · about ${formatDuration(leftInBook)} left` : ''}</span>
       </div>
+      {#if jumpBack}
+        <button type="button" class="back-to" onclick={goBack}>Back to {jumpBack.label}</button>
+      {/if}
       <input
         type="range"
         min="0"
@@ -545,6 +631,7 @@
         aria-valuetext="{percent}%"
         oninput={(e) => (dragging = Number(e.currentTarget.value) / 1000)}
         onchange={(e) => {
+          rememberJump();
           post({ type: 'fraction', fraction: Number(e.currentTarget.value) / 1000 });
           dragging = null;
         }}
@@ -553,10 +640,7 @@
         <button type="button" class="btn ghost small" disabled={chapterIndex <= 0} onclick={() => go(toc[chapterIndex - 1].href)}>
           ‹ Previous chapter
         </button>
-        <span class="mid">
-          <strong class="pct">{percent}%</strong>
-          {#if leftInBook !== undefined}<span class="muted left">about {formatDuration(leftInBook)} left</span>{/if}
-        </span>
+        <span class="mid"></span>
         <button
           type="button"
           class="btn ghost small"
@@ -570,7 +654,15 @@
   {/if}
 
   {#if sheet === 'settings'}
-    <ReaderSettings {prefs} lang={bookLang} onchange={setPrefs} onclose={closeSheet} />
+    <ReaderSettings
+      {prefs}
+      lang={bookLang}
+      customFontName={customFont?.name}
+      onfontfile={loadFontFile}
+      onfontremove={removeFontFile}
+      onchange={setPrefs}
+      onclose={closeSheet}
+    />
   {:else if sheet === 'quote' && item && picked}
     <ReaderSheet title="Save quote" onclose={closeSheet}>
       <QuoteForm
@@ -591,6 +683,7 @@
     </ReaderSheet>
   {:else if sheet === 'contents'}
     <ReaderContents
+      initialTab={contentsTab}
       {toc}
       current={loc.chapterHref}
       {bookmarks}
@@ -653,6 +746,20 @@
     max-width: 30rem;
   }
 
+  /* Kindle-style corners: small sans text in the page's own colour. */
+  .clock {
+    position: absolute;
+    top: calc(env(safe-area-inset-top) + 0.75rem);
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 0.72rem;
+    opacity: 0.75;
+    pointer-events: none;
+    font-variant-numeric: tabular-nums;
+  }
+
   .status-line {
     position: absolute;
     left: 0;
@@ -660,12 +767,53 @@
     bottom: calc(env(safe-area-inset-bottom) + 0.7rem);
     display: flex;
     justify-content: space-between;
+    align-items: center;
     gap: 1rem;
     padding: 0 1.4rem;
-    font-size: 0.72rem;
-    opacity: 0.6;
-    pointer-events: none;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 0.75rem;
     font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+
+  .status-line .corner {
+    pointer-events: auto;
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+    padding: 0.3rem 0;
+    opacity: 0.85;
+    cursor: pointer;
+    min-width: 6rem;
+    text-align: left;
+  }
+
+  .status-line .right {
+    opacity: 0.85;
+  }
+
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: 0.1rem;
+  }
+
+  .spacer {
+    flex: 1;
+  }
+
+  .back-to {
+    display: block;
+    margin: 0.5rem auto 0;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 0.3rem 0.8rem;
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
   }
 
   .bm.on :global(svg) {
@@ -838,9 +986,6 @@
     line-height: 1.2;
   }
 
-  .mid .left {
-    font-size: 0.75rem;
-  }
 
   .ch {
     min-width: 0;
@@ -849,32 +994,39 @@
     white-space: nowrap;
   }
 
+  /* Controls in the page's own colours, like a Kindle's. */
   .bar,
   .bottom {
     position: absolute;
     left: 0;
     right: 0;
     z-index: 2;
-    background: var(--surface);
-    color: var(--text);
-    box-shadow: var(--shadow);
+    background: var(--rbg);
+    color: var(--rfg);
+    --border: color-mix(in srgb, var(--rfg) 16%, transparent);
+    --text: var(--rfg);
+    --text-2: color-mix(in srgb, var(--rfg) 62%, var(--rbg));
+    --surface-2: color-mix(in srgb, var(--rfg) 7%, var(--rbg));
+    box-shadow: 0 1px 8px rgb(0 0 0 / 0.08);
+  }
+
+  .bar :global(.btn.ghost),
+  .bottom :global(.btn.ghost) {
+    color: var(--rfg);
   }
 
   .bar {
     top: 0;
-    display: flex;
-    align-items: center;
-    gap: 0.2rem;
-    padding: calc(env(safe-area-inset-top) + 0.3rem) 0.4rem 0.3rem;
+    padding: calc(env(safe-area-inset-top) + 0.3rem) 0.4rem 0.6rem;
     border-bottom: 1px solid var(--border);
   }
 
+  /* The book's title under the buttons, as on a Kindle. */
   .title {
-    flex: 1;
-    min-width: 0;
     text-align: center;
-    font-weight: 600;
-    font-size: 0.95rem;
+    font-family: 'Literata', var(--font-serif);
+    font-size: 1.05rem;
+    padding: 0.1rem 1rem 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -894,11 +1046,18 @@
   }
 
   .info {
-    justify-content: space-between;
-    gap: 0.8rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
   }
 
-  .info .muted {
+  .info .ch {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
   }
 
@@ -912,10 +1071,6 @@
     justify-content: space-between;
   }
 
-  .pct {
-    font-size: 1rem;
-    font-variant-numeric: tabular-nums;
-  }
 
   @media (min-width: 900px) {
     .bottom {

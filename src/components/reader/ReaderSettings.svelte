@@ -3,18 +3,37 @@
   import Icon from '../Icon.svelte';
 
   // Text size, colours, font, line spacing, side margins and layout. Changes show at once.
-  let { prefs, lang, onchange, onclose }: { prefs: ReaderPrefs; lang?: string; onchange: (p: ReaderPrefs) => void; onclose: () => void } =
-    $props();
+  let {
+    prefs,
+    lang,
+    customFontName = undefined,
+    onfontfile,
+    onfontremove,
+    onchange,
+    onclose,
+  }: {
+    prefs: ReaderPrefs;
+    lang?: string;
+    customFontName?: string;
+    onfontfile: (f: File) => void;
+    onfontremove: () => void;
+    onchange: (p: ReaderPrefs) => void;
+    onclose: () => void;
+  } = $props();
+
+  let fontInput: HTMLInputElement | undefined = $state();
 
   const set = <K extends keyof ReaderPrefs>(key: K, value: ReaderPrefs[K]) => onchange({ ...prefs, [key]: value });
   const num = (e: Event) => Number((e.currentTarget as HTMLInputElement).value);
 
   const THEMES = [
-    ['light', 'Light'],
+    ['white', 'White'],
+    ['light', 'Ivory'],
     ['sepia', 'Sepia'],
     ['dark', 'Dark'],
   ] as const;
   const FONTS = [
+    ['literata', 'Literata'],
     ['serif', 'Serif'],
     ['sans', 'Sans'],
     ['book', 'Book’s own'],
@@ -86,11 +105,44 @@
   </div>
 
   <div class="lab">Font</div>
-  <div class="seg" role="radiogroup" aria-label="Font">
+  <div class="seg fonts" role="radiogroup" aria-label="Font">
     {#each FONTS as [f, label] (f)}
-      <button type="button" role="radio" aria-checked={prefs.font === f} class:on={prefs.font === f} onclick={() => set('font', f)}>{label}</button>
+      <button
+        type="button"
+        role="radio"
+        aria-checked={prefs.font === f}
+        class:on={prefs.font === f}
+        style:font-family={f === 'literata' ? "'Literata', serif" : f === 'sans' ? 'system-ui, sans-serif' : f === 'serif' ? 'var(--font-serif)' : undefined}
+        onclick={() => set('font', f)}>{label}</button
+      >
     {/each}
+    {#if customFontName}
+      <button type="button" role="radio" aria-checked={prefs.font === 'custom'} class:on={prefs.font === 'custom'} onclick={() => set('font', 'custom')}>
+        Your font
+      </button>
+    {/if}
   </div>
+  <p class="small muted font-note">
+    Literata is a free font close to Kindle’s Bookerly.
+    {#if customFontName}
+      Your font: {customFontName} ·
+      <button type="button" class="linkish" onclick={() => fontInput?.click()}>Change</button> ·
+      <button type="button" class="linkish" onclick={onfontremove}>Remove</button>
+    {:else}
+      <button type="button" class="linkish" onclick={() => fontInput?.click()}>Use your own font file…</button>
+    {/if}
+  </p>
+  <input
+    bind:this={fontInput}
+    type="file"
+    accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2"
+    hidden
+    onchange={(e) => {
+      const f = e.currentTarget.files?.[0];
+      e.currentTarget.value = '';
+      if (f) onfontfile(f);
+    }}
+  />
 
   <div class="lab">Layout</div>
   <div class="seg" role="radiogroup" aria-label="Layout">
@@ -264,6 +316,24 @@
     color: var(--text);
     font-weight: 600;
     box-shadow: var(--shadow);
+  }
+
+  .fonts {
+    flex-wrap: wrap;
+  }
+
+  .font-note {
+    margin: 0.4rem 0 0;
+  }
+
+  .linkish {
+    border: none;
+    background: none;
+    padding: 0;
+    font: inherit;
+    color: var(--accent);
+    text-decoration: underline;
+    cursor: pointer;
   }
 
   .foot {

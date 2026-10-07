@@ -5,6 +5,7 @@
 
   // The book's chapters, your bookmarks and quotes in it, and search inside the book.
   let {
+    initialTab = 'chapters',
     toc,
     current,
     bookmarks,
@@ -17,6 +18,7 @@
     onsearch,
     onclose,
   }: {
+    initialTab?: 'chapters' | 'search';
     toc: TocEntry[];
     current?: string;
     bookmarks: ReaderBookmark[];
@@ -33,7 +35,7 @@
   // svelte-ignore state_referenced_locally
   type Tab = 'chapters' | 'bookmarks' | 'quotes' | 'search';
   // svelte-ignore state_referenced_locally
-  let tab = $state<Tab>(searched ? 'search' : 'chapters');
+  let tab = $state<Tab>(searched ? 'search' : initialTab);
   const TABS: [Tab, string][] = [
     ['chapters', 'Chapters'],
     ['bookmarks', 'Bookmarks'],

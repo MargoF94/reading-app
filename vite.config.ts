@@ -37,7 +37,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,webmanifest,woff2}'],
         navigateFallback: 'index.html',
         // Opens the book when a reading reminder is tapped.
         importScripts: ['sw-notify.js'],

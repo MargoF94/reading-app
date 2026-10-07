@@ -19,7 +19,7 @@ describe('reader settings', () => {
     expect(cleanPrefs(undefined)).toEqual(DEFAULT_PREFS);
     expect(cleanPrefs({ fontSize: 10 }).fontSize).toBe(50);
     const p = cleanPrefs({ fontSize: 999, lineHeight: 1.234, margin: -4, theme: 'neon', layout: 'scroll' });
-    expect(p).toMatchObject({ fontSize: 220, lineHeight: 1.2, margin: 0, theme: 'sepia', layout: 'scroll' });
+    expect(p).toMatchObject({ fontSize: 220, lineHeight: 1.2, margin: 0, theme: 'white', layout: 'scroll' });
   });
 
   it('puts line spacing, size and theme into the book', () => {
@@ -39,6 +39,23 @@ describe('reader settings', () => {
     expect(ja).not.toContain('hyphens');
     // Direction only applies to Japanese books.
     expect(readerCss({ ...DEFAULT_PREFS, writing: 'vertical' }, 'en')).not.toContain('writing-mode');
+  });
+});
+
+describe('reader fonts and corners', () => {
+  it('uses Literata with its @font-face rules after @namespace', () => {
+    const css = readerCss({ ...DEFAULT_PREFS }, 'en', "@font-face { font-family: 'Literata'; src: url('https://x/f.woff2'); }");
+    const lines = css.split('\n');
+    expect(lines[0]).toMatch(/^@namespace/);
+    expect(lines[1]).toContain('@font-face');
+    expect(css).toContain("font-family: 'Literata', 'Iowan Old Style'");
+    expect(readerCss({ ...DEFAULT_PREFS, font: 'custom' }, 'ja')).toContain("'ReaderCustomFont', 'Hiragino Mincho ProN'");
+  });
+
+  it('defaults to a Kindle-like look and keeps a known footer choice', () => {
+    expect(DEFAULT_PREFS).toMatchObject({ theme: 'white', font: 'literata', footer: 'location' });
+    expect(cleanPrefs({ footer: 'book-time', theme: 'light' })).toMatchObject({ footer: 'book-time', theme: 'light' });
+    expect(cleanPrefs({ footer: 'nope' }).footer).toBe('location');
   });
 });
 
