@@ -149,6 +149,8 @@ export interface Item extends BaseRecord {
   songs?: Song[];
   /** Pictures kept with the book, e.g. character references. */
   images?: ItemImage[];
+  /** Characters added by hand (books; fics use their AO3 character tags). */
+  characterIds?: string[];
   files?: StoredFile[];
   /** Shared by editions of the same work (e.g. a Japanese original and its translation). */
   workKey?: string;
@@ -182,6 +184,14 @@ export interface Reading extends BaseRecord {
 /** Simple named reference data: publishers, genres, tags, fandom-agnostic. */
 export interface NamedRecord extends BaseRecord {
   name: string;
+}
+
+/** A character in books (and fics, where AO3 character tags match by name). */
+export interface Character extends NamedRecord {
+  altNames: string[]; // other names, e.g. in another script; fic tags match these too
+  note?: string;
+  images?: ItemImage[];
+  mainImageId?: string; // the picture used as the avatar (default: the first)
 }
 
 export interface Author extends NamedRecord {
@@ -311,6 +321,7 @@ export interface Collections {
   schedule: ReadingSession[];
   quotes: Quote[];
   readingTime: ReadingTime[];
+  characters: Character[];
 }
 
 export type CollectionName = keyof Collections;
@@ -330,12 +341,13 @@ export const COLLECTION_NAMES: CollectionName[] = [
   'schedule',
   'quotes',
   'readingTime',
+  'characters',
 ];
 
 /** Shape of library.json. */
 export interface LibraryFile extends Collections {
   app: 'reading-app';
-  /** 2 added `vocabulary`, 3 `schedule`, 4 `quotes`, 5 `readingTime`; older app versions refuse newer files instead of dropping data. */
-  schema: 5;
+  /** 2 added `vocabulary`, 3 `schedule`, 4 `quotes`, 5 `readingTime`, 6 `characters`; older app versions refuse newer files instead of dropping data. */
+  schema: 6;
   savedAt: string;
 }

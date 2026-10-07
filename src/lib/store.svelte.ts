@@ -4,6 +4,7 @@ import { defaultSettings } from './constants';
 import { discardCover } from './covers';
 import * as db from './db';
 import { emptyCollections, mergeCollections } from './merge';
+import { characterIndex } from './characters';
 import { readerProgress } from './reader';
 import { deriveStatus, sortReadings, transition } from './reading';
 import { COLLECTION_NAMES } from './types';
@@ -24,6 +25,7 @@ import type {
   Quote,
   ReaderPosition,
   ReadingTime,
+  Character,
   StoredFile,
 } from './types';
 import { collator, newId, normalize, nowIso, today } from './util';
@@ -70,6 +72,12 @@ class Library {
   quotes = $derived(
     this.data.quotes.filter((q) => !q.deleted).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
   );
+
+  /** Characters with a page (records), by name. */
+  characters = $derived(this.data.characters.filter((c) => !c.deleted).sort((a, b) => collator.compare(a.name, b.name)));
+
+  /** Every character, including fic character tags without a page yet. */
+  characterIndex = $derived(characterIndex(this.data.characters, this.items));
 
   /** Time spent reading, oldest first. */
   readingTime = $derived(
@@ -366,6 +374,33 @@ class Library {
 
   async deleteWord(word: VocabWord): Promise<void> {
     await this.remove('vocabulary', [word]);
+  }
+
+  // ---- characters -------------------------------------------------------------
+
+  character(id: string): Character | undefined {
+    return this.characters.find((c) => c.id === id);
+  }
+
+  async createCharacter(name: string, altNames: string[] = []): Promise<Character> {
+    const now = nowIso();
+    const c: Character = { id: newId(), createdAt: now, updatedAt: now, name: name.trim(), altNames };
+    await this.put('characters', [c]);
+    return c;
+  }
+
+  async saveCharacter(c: Character): Promise<void> {
+    await this.put('characters', [c]);
+  }
+
+  /** Deletes a character page: books stop listing it; fic tags stay (they're the fic's own). */
+  async deleteCharacter(c: Character): Promise<void> {
+    const changed = this.items
+      .filter((i) => i.characterIds?.includes(c.id))
+      .map((i) => ({ ...i, characterIds: i.characterIds!.filter((x) => x !== c.id) }));
+    if (changed.length) await this.put('items', changed);
+    await this.remove('characters', [c]);
+    for (const img of c.images ?? []) await discardCover(img.url);
   }
 
   // ---- reading time ---------------------------------------------------------

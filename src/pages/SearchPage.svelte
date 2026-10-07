@@ -41,6 +41,10 @@
     if (series) out.push(['series', series]);
     for (const id of item.genreIds) out.push(['genre', L.genres.get(id)?.name ?? '']);
     for (const id of item.tagIds) out.push(['tag', L.tags.get(id)?.name ?? '']);
+    for (const id of item.characterIds ?? []) {
+      const c = library.character(id);
+      if (c) for (const n of [c.name, ...c.altNames]) out.push(['character', n]);
+    }
     const pub = item.book?.publisherId && L.publishers.get(item.book.publisherId)?.name;
     if (pub) out.push(['publisher', pub]);
     const f = item.fic;

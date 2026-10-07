@@ -13,6 +13,8 @@
     onclose,
     oncaption,
     onremove,
+    mainId = undefined,
+    onsetmain = undefined,
   }: {
     images: ItemImage[];
     index: number;
@@ -21,9 +23,13 @@
     onclose: () => void;
     oncaption: (id: string, text: string) => void;
     onremove: (id: string) => void;
+    mainId?: string;
+    onsetmain?: (id: string) => void;
   } = $props();
 
+
   const img = $derived(images[index]);
+  const isMain = $derived(!!onsetmain && img.id === (mainId ?? images[0]?.id));
   let editing = $state(false);
   let text = $state('');
   let startX = 0;
@@ -65,6 +71,15 @@
     <div class="row">
       {#if !isRepoCover(img.url)}
         <a class="btn ghost icon" href={img.url} target="_blank" rel="noopener noreferrer" aria-label="Open the picture’s website"><Icon name="external" size={20} /></a>
+      {/if}
+      {#if onsetmain}
+        <button
+          type="button"
+          class="btn ghost small"
+          aria-pressed={isMain}
+          disabled={isMain}
+          onclick={() => onsetmain(img.id)}>{isMain ? '★ Main picture' : '☆ Make main picture'}</button
+        >
       {/if}
       <button type="button" class="btn ghost icon" aria-label="Remove picture" onclick={() => onremove(img.id)}><Icon name="trash" size={20} /></button>
       <button type="button" class="btn ghost icon" aria-label="Close" onclick={onclose}><Icon name="close" size={22} /></button>

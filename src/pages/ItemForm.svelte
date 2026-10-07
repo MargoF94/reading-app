@@ -338,6 +338,7 @@
         notes: notes.trim() || undefined,
         songs: existing?.songs,
         images: existing?.images,
+        characterIds: existing?.characterIds,
         files: existing?.files,
         wordCount: words,
         wordCountEstimated: words !== undefined && type === 'book' ? true : undefined,

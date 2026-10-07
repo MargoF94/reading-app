@@ -13,6 +13,8 @@
   import ListsPage from './pages/ListsPage.svelte';
   import WordsPage from './pages/WordsPage.svelte';
   import SearchPage from './pages/SearchPage.svelte';
+  import CharacterPage from './pages/CharacterPage.svelte';
+  import CharactersIndex from './pages/CharactersIndex.svelte';
   import TimerBar from './components/TimerBar.svelte';
   import { timer } from './lib/timer.svelte';
   import CalendarPage from './pages/CalendarPage.svelte';
@@ -61,7 +63,7 @@
       href: '#/library',
       icon: 'library',
       label: 'Library',
-      match: (s: string[]) => ['library', 'browse', 'lists', 'list'].includes(s[0]),
+      match: (s: string[]) => ['library', 'browse', 'lists', 'list', 'character'].includes(s[0]),
     },
     { href: '#/add', icon: 'plus', label: 'Add', match: (s: string[]) => s[0] === 'add' || s[0] === 'import' },
     { href: '#/calendar', icon: 'calendar', label: 'Calendar', match: (s: string[]) => s[0] === 'calendar' },
@@ -140,6 +142,15 @@
       <GoodreadsUpdate />
     {:else if seg[0] === 'import'}
       <Import />
+    {:else if seg[0] === 'character' && seg[1]}
+      {#key seg[1]}<CharacterPage id={seg[1]} />{/key}
+    {:else if seg[0] === 'character'}
+      {#key router.route.query.get('tag')}<CharacterPage tag={router.route.query.get('tag') ?? ''} />{/key}
+    {:else if seg[0] === 'browse' && seg[1] === 'characters' && seg[2] !== undefined}
+      <!-- Old links to a character tag open the character's page. -->
+      {#key seg[2]}<CharacterPage tag={seg[2]} />{/key}
+    {:else if seg[0] === 'browse' && seg[1] === 'characters'}
+      <CharactersIndex />
     {:else if seg[0] === 'browse' && kindInfo(seg[1]) && seg[2] !== undefined}
       {#key seg[1] + '/' + seg[2]}<BrowseDetail kind={seg[1] as BrowseKind} key={seg[2]} />{/key}
     {:else if seg[0] === 'browse' && kindInfo(seg[1])}

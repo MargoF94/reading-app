@@ -11,6 +11,9 @@
   import ReadButton from '../components/reader/ReadButton.svelte';
   import ItemTime from '../components/ItemTime.svelte';
   import ItemImages from '../components/images/ItemImages.svelte';
+  import ItemCharacters from '../components/characters/ItemCharacters.svelte';
+  import CharacterAvatar from '../components/characters/CharacterAvatar.svelte';
+  import { characterForTag, characterHref, tagName } from '../lib/characters';
   import { deleteItemFile } from '../lib/itemFiles';
   import { sync } from '../lib/sync.svelte';
   import ReadingDates from '../components/ReadingDates.svelte';
@@ -221,6 +224,8 @@
         </div>
       {/if}
 
+      {#if item.type === 'book'}<ItemCharacters {item} />{/if}
+
       {#if item.fic?.url}
         <p><a href={item.fic.url} target="_blank" rel="noopener noreferrer">Open on AO3 <Icon name="external" size={14} /></a></p>
       {/if}
@@ -314,7 +319,13 @@
               <span class="label">{label}</span>
               <div class="chips">
                 {#each values as v (v)}
-                  {#if ficKind[label]}
+                  {#if label === 'Characters'}
+                    {@const c = characterForTag(library.characters, v)}
+                    <a class="chip char-chip" href={characterHref(c, v)} title={v}>
+                      {#if c}<CharacterAvatar character={c} name={c.name} size={20} />{/if}
+                      {c?.name ?? tagName(v)}
+                    </a>
+                  {:else if ficKind[label]}
                     <a class="chip" href="#/browse/{ficKind[label]}/{encodeURIComponent(v)}">{v}</a>
                   {:else}<span class="chip">{v}</span>{/if}
                 {/each}
@@ -466,6 +477,12 @@
     color: var(--accent);
     font-weight: 600;
     font-size: 0.9rem;
+  }
+
+  .char-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
   }
 
   .rating {
