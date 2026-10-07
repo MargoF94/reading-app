@@ -17,6 +17,7 @@ const reading = (fields: Partial<Reading> = {}): Reading => ({
 describe('reader settings', () => {
   it('fills in and clamps saved settings', () => {
     expect(cleanPrefs(undefined)).toEqual(DEFAULT_PREFS);
+    expect(cleanPrefs({ fontSize: 10 }).fontSize).toBe(50);
     const p = cleanPrefs({ fontSize: 999, lineHeight: 1.234, margin: -4, theme: 'neon', layout: 'scroll' });
     expect(p).toMatchObject({ fontSize: 220, lineHeight: 1.2, margin: 0, theme: 'sepia', layout: 'scroll' });
   });

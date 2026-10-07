@@ -31,7 +31,7 @@ export const DEFAULT_PREFS: ReaderPrefs = {
 };
 
 export const PREF_LIMITS = {
-  fontSize: { min: 70, max: 220, step: 10 },
+  fontSize: { min: 50, max: 220, step: 5 },
   lineHeight: { min: 1, max: 2.6, step: 0.1 },
   margin: { min: 0, max: 20, step: 1 },
 } as const;
@@ -82,7 +82,7 @@ export function readerCss(prefs: ReaderPrefs, lang?: string): string {
     '@namespace epub "http://www.idpf.org/2007/ops";',
     // The page colour comes from the reader behind the book, so it changes with the theme at once.
     // No dark colour-scheme: it would give the page an opaque dark backdrop of its own.
-    `html { color: ${c.fg} !important; background: transparent !important; font-size: ${prefs.fontSize}% !important; }`,
+    `html { color: ${c.fg} !important; background: transparent !important; font-size: ${prefs.fontSize}% !important; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }`,
     'body, body *:not(a) { color: inherit !important; background-color: transparent !important; }',
     'body { background-image: none !important; }',
     `a:link, a:visited { color: ${c.link} !important; }`,
