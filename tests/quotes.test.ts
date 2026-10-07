@@ -46,7 +46,7 @@ describe('quotes', () => {
     const c = emptyCollections();
     c.quotes.push(quotes[0]);
     const file = toLibraryFile(c, 'now');
-    expect(file.schema).toBe(4);
+    expect(file.schema).toBe(5);
     expect(parseLibraryFile(JSON.stringify(file)).quotes).toHaveLength(1);
     expect(parseLibraryFile(JSON.stringify({ app: 'reading-app', schema: 3, items: [] })).quotes).toEqual([]);
   });

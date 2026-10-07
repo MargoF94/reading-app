@@ -2,6 +2,8 @@
 // reader page (its parent) with messages. The frame's Content Security Policy
 // stops any scripts inside the book from running.
 import { View, type RelocateDetail, type SearchResult, type TocItem } from 'foliate-js/view.js';
+import { collapse, compare } from 'foliate-js/epubcfi.js';
+import { Overlayer } from 'foliate-js/overlayer.js';
 import { isJapanese, readerCss, sentenceAt, THEME_COLORS, type FromFrame, type ReaderPrefs, type TocEntry, type ToFrame } from '../lib/reader';
 
 const post = (m: FromFrame) => parent.postMessage(m, location.origin);
@@ -10,6 +12,10 @@ let view: View | null = null;
 let file: File | null = null;
 let prefs: ReaderPrefs | null = null;
 let lang = '';
+let annotations = new Set<string>(); // cfis of saved quotes, underlined
+let bookmarks: string[] = [];
+let lastRelocate: RelocateDetail | null = null;
+let annotationTapped = false;
 
 function textOf(v: unknown): string {
   if (typeof v === 'string') return v;
@@ -78,6 +84,19 @@ async function open(f: File, cfi: string | undefined, p: ReaderPrefs) {
     onLoad(doc, index);
   });
   v.addEventListener('relocate', (e) => onRelocate((e as CustomEvent<RelocateDetail>).detail));
+  // Saved quotes are underlined; they're drawn again whenever a chapter is laid out.
+  v.addEventListener('create-overlay', () => {
+    for (const cfi of annotations) void v.addAnnotation({ value: cfi }).catch(() => {});
+  });
+  v.addEventListener('draw-annotation', (e) => {
+    const { draw, doc } = (e as CustomEvent<{ draw: (f: unknown, o: unknown) => void; doc?: Document }>).detail;
+    const writingMode = doc?.defaultView?.getComputedStyle(doc.body).writingMode;
+    draw(Overlayer.underline, { color: THEME_COLORS[(wanted ?? prefs)?.theme ?? 'sepia'].link, width: 2, writingMode });
+  });
+  v.addEventListener('show-annotation', (e) => {
+    annotationTapped = true;
+    post({ type: 'annotation', cfi: (e as CustomEvent<{ value: string }>).detail.value });
+  });
   // Links to other websites open outside the reader.
   v.addEventListener('external-link', (e) => {
     e.preventDefault();
@@ -160,15 +179,37 @@ function onLoad(doc: Document, index: number) {
     }
     // Where the tap was on screen: the page's frame may be scrolled inside the renderer.
     const frame = doc.defaultView?.frameElement;
-    tapAt((frame?.getBoundingClientRect().left ?? 0) + e.clientX);
+    const x = (frame?.getBoundingClientRect().left ?? 0) + e.clientX;
+    // Taps on an underlined quote open it instead (that handler runs alongside this one).
+    setTimeout(() => {
+      if (annotationTapped) annotationTapped = false;
+      else tapAt(x);
+    }, 0);
   });
 }
 
 // Taps in the margins around the book.
 document.addEventListener('click', (e) => tapAt(e.clientX));
 
+function bookmarkOn(pageRange: string): string | undefined {
+  try {
+    const start = collapse(pageRange);
+    const end = collapse(pageRange, true);
+    return bookmarks.find((b) => compare(start, b) <= 0 && compare(b, end) <= 0);
+  } catch {
+    return undefined;
+  }
+}
+
 function onRelocate(d: RelocateDetail) {
+  lastRelocate = d;
   const r = view?.renderer;
+  let pageCfi: string | undefined;
+  try {
+    pageCfi = collapse(d.cfi);
+  } catch {
+    pageCfi = undefined;
+  }
   const paged = prefs?.layout !== 'scroll' && r && r.pages > 2;
   post({
     type: 'relocate',
@@ -179,6 +220,16 @@ function onRelocate(d: RelocateDetail) {
     // The renderer adds a blank page before and after each chapter.
     page: paged ? Math.min(Math.max(r.page, 1), r.pages - 2) : undefined,
     pages: paged ? r.pages - 2 : undefined,
+    pageCfi,
+    // Paragraphs run together in the page's text; put a space back after sentence ends.
+    excerpt:
+      d.range
+        ?.toString()
+        .replace(/([.!?…"”’])(?=[\p{Lu}“"‘])/gu, '$1 ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 120) || undefined,
+    bookmark: bookmarkOn(d.cfi),
   });
 }
 
@@ -237,6 +288,17 @@ addEventListener('message', (e: MessageEvent<ToFrame>) => {
       break;
     case 'search':
       void search(m.query);
+      break;
+    case 'annotations': {
+      const next = new Set(m.cfis);
+      for (const cfi of annotations) if (!next.has(cfi)) void view?.deleteAnnotation({ value: cfi }).catch(() => {});
+      for (const cfi of next) if (!annotations.has(cfi)) void view?.addAnnotation({ value: cfi }).catch(() => {});
+      annotations = next;
+      break;
+    }
+    case 'bookmarks':
+      bookmarks = m.cfis;
+      if (lastRelocate) onRelocate(lastRelocate);
       break;
     case 'deselect':
       view?.deselect();

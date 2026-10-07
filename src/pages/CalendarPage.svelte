@@ -5,6 +5,8 @@
   import ScheduleDialog from '../components/calendar/ScheduleDialog.svelte';
   import SessionRow from '../components/calendar/SessionRow.svelte';
   import Icon from '../components/Icon.svelte';
+  import Cover from '../components/Cover.svelte';
+  import { formatDuration } from '../lib/readingTime';
   import { router } from '../lib/router.svelte';
   import {
     addDays,
@@ -65,6 +67,40 @@
       /* not remembered */
     }
   }
+
+  // Time read (from the reader, timers and added time): shown as text, not a color.
+  const TIME_KEY = 'reading-app:calendar-time';
+  let showTime = $state(loadShowTime());
+  function loadShowTime(): boolean {
+    try {
+      return localStorage.getItem(TIME_KEY) !== '0';
+    } catch {
+      return true;
+    }
+  }
+  function toggleTime() {
+    showTime = !showTime;
+    try {
+      localStorage.setItem(TIME_KEY, showTime ? '1' : '0');
+    } catch {
+      /* not remembered */
+    }
+  }
+  const timeByDate = $derived.by(() => {
+    const map = new Map<string, { item: Item; seconds: number }[]>();
+    if (!showTime) return map;
+    for (const t of library.readingTime) {
+      if (t.date < range[0] || t.date > range[1]) continue;
+      const item = library.item(t.itemId);
+      if (!item) continue;
+      const list = map.get(t.date) ?? map.set(t.date, []).get(t.date)!;
+      const row = list.find((r) => r.item.id === item.id);
+      if (row) row.seconds += t.seconds;
+      else list.push({ item, seconds: t.seconds });
+    }
+    return map;
+  });
+  const dayMinutes = (d: string) => Math.round((timeByDate.get(d) ?? []).reduce((n, r) => n + r.seconds, 0) / 60);
 
   const occs = $derived(occurrences(library.schedule, range[0], range[1]));
   const rels = $derived(releases(library.items, range[0], range[1]));
@@ -161,8 +197,26 @@
   {/if}
 {/snippet}
 
+{#snippet timeRows(d: string)}
+  {#each timeByDate.get(d) ?? [] as r (r.item.id)}
+    {#if r.seconds >= 60}
+      <div class="time-row">
+        <div class="time-label"><strong>Read</strong></div>
+        <a href="#/item/{r.item.id}" aria-hidden="true" tabindex="-1"><Cover item={r.item} width={44} /></a>
+        <div class="time-info">
+          <a class="title" href="#/item/{r.item.id}">{r.item.title}</a>
+          <span class="small muted"><Icon name="timer" size={13} /> {formatDuration(r.seconds)}</span>
+        </div>
+      </div>
+    {/if}
+  {/each}
+{/snippet}
+
 {#snippet legend()}
   <div class="legend" role="group" aria-label="Show on the calendar">
+    <button type="button" class="key" class:off={!showTime} aria-pressed={showTime} onclick={toggleTime}>
+      <Icon name="timer" size={15} /> Time read
+    </button>
     {#each EVENT_KINDS as k (k.kind)}
       <button type="button" class="key" class:off={hidden.has(k.kind)} aria-pressed={!hidden.has(k.kind)} onclick={() => toggle(k.kind)}>
         <span class="ring sw {k.kind}"><span class="ev-badge"><Icon name={k.icon} size={10} /></span></span>
@@ -205,6 +259,7 @@
             onclick={() => go({ d })}
           >
             <span class="n">{+d.slice(8)}</span>
+            {#if showTime && dayMinutes(d)}<span class="mins">{dayMinutes(d) >= 60 ? `${Math.floor(dayMinutes(d) / 60)}h${String(dayMinutes(d) % 60).padStart(2, '0')}` : `${dayMinutes(d)}m`}</span>{/if}
             {#if first}<EventCover item={first.item} kind={first.kind} width={26} />{/if}
             {#if entries.length > 1}
               <span class="dots" aria-hidden="true">
@@ -229,8 +284,9 @@
     {#each byDate.get(selected) ?? [] as e (entryKey(e))}
       {@render entryRow(e)}
     {:else}
-      <p class="small muted" style="margin:0.3rem 0 0">Nothing planned.</p>
+      {#if !timeByDate.get(selected)?.length}<p class="small muted" style="margin:0.3rem 0 0">Nothing planned.</p>{/if}
     {/each}
+    {@render timeRows(selected)}
   </section>
   {@render later()}
 {:else if view === 'week'}
@@ -250,8 +306,9 @@
         {#each entries as e (entryKey(e))}
           {@render entryRow(e)}
         {:else}
-          <p class="small muted" style="margin:0">Nothing planned.</p>
+          {#if !timeByDate.get(d)?.length}<p class="small muted" style="margin:0">Nothing planned.</p>{/if}
         {/each}
+        {@render timeRows(d)}
       </section>
     {/each}
   </div>
@@ -411,6 +468,46 @@
     font-weight: 700;
     color: var(--text-2);
     line-height: 1;
+  }
+
+  .mins {
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: var(--text-2);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  .time-row {
+    display: flex;
+    gap: 0.7rem;
+    align-items: flex-start;
+    padding: 0.6rem 0;
+  }
+
+  .time-label {
+    width: 4.4rem;
+    flex-shrink: 0;
+    font-size: 0.85rem;
+    padding-top: 0.2rem;
+  }
+
+  .time-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+  }
+
+  .time-info .title {
+    font-weight: 600;
+    color: var(--text);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+  }
+
+  .time-info :global(svg) {
+    vertical-align: -2px;
   }
 
   .legend {

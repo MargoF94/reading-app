@@ -15,6 +15,7 @@ declare module 'foliate-js/view.js' {
   export interface RelocateDetail {
     fraction: number;
     cfi: string;
+    range?: Range;
     tocItem?: { label?: string; href?: string };
   }
   export interface SearchResult {
@@ -44,6 +45,19 @@ declare module 'foliate-js/view.js' {
     search(opts: { query: string }): AsyncGenerator<SearchResult | 'done'>;
     clearSearch(): void;
     deselect(): void;
+    addAnnotation(a: { value: string }): Promise<unknown>;
+    deleteAnnotation(a: { value: string }): Promise<unknown>;
     getCFI(index: number, range?: Range): string;
+  }
+}
+
+declare module 'foliate-js/epubcfi.js' {
+  export function collapse(cfi: string, toEnd?: boolean): string;
+  export function compare(a: string, b: string): number;
+}
+
+declare module 'foliate-js/overlayer.js' {
+  export class Overlayer {
+    static underline(rects: unknown, options?: { color?: string; width?: number; writingMode?: string }): SVGElement;
   }
 }

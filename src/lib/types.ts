@@ -101,6 +101,16 @@ export interface StoredFile {
   addedAt: string; // ISO timestamp
   /** Where reading stopped in the in-app reader (EPUBs). Synced, so another device continues there. */
   position?: ReaderPosition;
+  bookmarks?: ReaderBookmark[];
+}
+
+export interface ReaderBookmark {
+  id: string;
+  cfi: string; // start of the bookmarked page
+  fraction: number;
+  chapter?: string;
+  excerpt?: string; // the page's first words
+  at: string;
 }
 
 export interface ReaderPosition {
@@ -226,6 +236,20 @@ export interface Quote extends BaseRecord {
   cfi?: string;
 }
 
+export type TimeSource = 'reader' | 'timer' | 'manual';
+
+/** Time spent reading a book or fic: a reader session, a timer, or added by hand. */
+export interface ReadingTime extends BaseRecord {
+  itemId: string;
+  date: string; // YYYY-MM-DD (local) the session started
+  start?: string; // ISO timestamp
+  seconds: number;
+  source: TimeSource;
+  /** Reader sessions: where in the book it started and ended (0–1), for reading speed. */
+  from?: number;
+  to?: number;
+}
+
 export type Repeat = 'daily' | 'weekdays' | 'weekly';
 
 /** Planned reading time for a book or fic. Dates and times are local ("floating"). */
@@ -256,6 +280,8 @@ export interface Settings extends BaseRecord {
   bookEquivalentPages?: number;
   /** Apple Music storefront for song links, e.g. "us", "jp" (default: the device's region). */
   musicStore?: string;
+  /** Minutes a day to aim for (unset or 0 = no goal). */
+  dailyGoalMinutes?: number;
   /** Optional Google Books API key; unauthenticated requests share a small quota. */
   googleBooksKey?: string;
 }
@@ -275,6 +301,7 @@ export interface Collections {
   vocabulary: VocabWord[];
   schedule: ReadingSession[];
   quotes: Quote[];
+  readingTime: ReadingTime[];
 }
 
 export type CollectionName = keyof Collections;
@@ -293,12 +320,13 @@ export const COLLECTION_NAMES: CollectionName[] = [
   'vocabulary',
   'schedule',
   'quotes',
+  'readingTime',
 ];
 
 /** Shape of library.json. */
 export interface LibraryFile extends Collections {
   app: 'reading-app';
-  /** 2 added `vocabulary`, 3 `schedule`, 4 `quotes`; older app versions refuse newer files instead of dropping data. */
-  schema: 4;
+  /** 2 added `vocabulary`, 3 `schedule`, 4 `quotes`, 5 `readingTime`; older app versions refuse newer files instead of dropping data. */
+  schema: 5;
   savedAt: string;
 }

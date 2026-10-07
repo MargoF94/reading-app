@@ -12,6 +12,9 @@
   import ListPage from './pages/ListPage.svelte';
   import ListsPage from './pages/ListsPage.svelte';
   import WordsPage from './pages/WordsPage.svelte';
+  import SearchPage from './pages/SearchPage.svelte';
+  import TimerBar from './components/TimerBar.svelte';
+  import { timer } from './lib/timer.svelte';
   import CalendarPage from './pages/CalendarPage.svelte';
   import ReminderBanner from './components/calendar/ReminderBanner.svelte';
   import Stats from './pages/Stats.svelte';
@@ -30,6 +33,7 @@
   onMount(async () => {
     try {
       await library.load();
+      await timer.load();
       await sync.init();
     } catch (e) {
       loadError = e instanceof Error ? e.message : String(e);
@@ -66,7 +70,8 @@
   ];
   // Phones show Settings as a gear in the top bar; the sidebar lists it.
   const SETTINGS = { href: '#/settings', icon: 'settings', label: 'Settings', match: (s: string[]) => s[0] === 'settings' };
-  const SIDE_NAV = [...NAV, SETTINGS];
+  const SEARCH = { href: '#/search', icon: 'search', label: 'Search', match: (s: string[]) => s[0] === 'search' };
+  const SIDE_NAV = [SEARCH, ...NAV, SETTINGS];
 
   const seg = $derived(router.route.segments);
 </script>
@@ -87,6 +92,13 @@
 
   <main>
     <div class="topbar">
+      <a
+        class="gear search"
+        href="#/search"
+        class:active={SEARCH.match(seg)}
+        aria-label="Search"
+        aria-current={SEARCH.match(seg) ? 'page' : undefined}><Icon name="search" size={22} /></a
+      >
       <SyncBadge />
       <a
         class="gear"
@@ -132,6 +144,8 @@
       {#key seg[1] + '/' + seg[2]}<BrowseDetail kind={seg[1] as BrowseKind} key={seg[2]} />{/key}
     {:else if seg[0] === 'browse' && kindInfo(seg[1])}
       {#key seg[1]}<BrowseIndex kind={seg[1] as BrowseKind} />{/key}
+    {:else if seg[0] === 'search'}
+      <SearchPage />
     {:else if seg[0] === 'calendar'}
       <CalendarPage />
     {:else if seg[0] === 'words' || seg[0] === 'vocabulary'}
@@ -164,6 +178,8 @@
   </nav>
 </div>
 
+{#if seg[0] !== 'read'}<TimerBar />{/if}
+
 <div class="toasts" aria-live="polite">
   {#each toasts.list as t (t.id)}
     <div class="toast {t.kind}">{t.text}</div>
@@ -194,6 +210,10 @@
     padding: 0.3rem;
     border-radius: var(--radius-sm);
     color: var(--text-2);
+  }
+
+  .search {
+    margin-right: auto;
   }
 
   .gear.active {

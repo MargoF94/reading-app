@@ -6,6 +6,7 @@
   import GoalsCard from '../components/GoalsCard.svelte';
   import { bookEquivalentWords, compact, computeStats, genreShares, PRESETS, presetPeriod, type Period, type PresetId } from '../lib/stats';
   import { router } from '../lib/router.svelte';
+  import { formatShort, readingSpeed, timeStats } from '../lib/readingTime';
   import { library } from '../lib/store.svelte';
   import type { ItemType } from '../lib/types';
   import { formatDate, formatMoney, formatNumber, normalize, today } from '../lib/util';
@@ -42,6 +43,43 @@
       color: g.slot >= 0 ? PIE_COLORS[g.slot] : 'var(--pie-other)',
     })),
   );
+  // ---- reading time (reader sessions, timers, added time) ----
+  const timeLogs = $derived(
+    type ? library.readingTime.filter((t) => library.item(t.itemId)?.type === type) : library.readingTime,
+  );
+  const time = $derived(timeStats(timeLogs, period, today()));
+  const speed = $derived(readingSpeed(timeLogs.filter((t) => (!period.from || t.date >= period.from) && (!period.to || t.date <= period.to)), (id) => library.item(id), library.settings));
+  // Short periods by day, longer ones by the same months/years as the other charts.
+  const timeChart = $derived.by(() => {
+    const inP = timeLogs.filter((t) => (!period.from || t.date >= period.from) && (!period.to || t.date <= period.to));
+    if (period.from && period.to && Date.parse(period.to) - Date.parse(period.from) <= 62 * 86400000) {
+      const end = period.to < today() ? period.to : today();
+      const days: string[] = [];
+      for (let d = new Date(`${period.from}T12:00:00Z`); d.toISOString().slice(0, 10) <= end; d.setUTCDate(d.getUTCDate() + 1))
+        days.push(d.toISOString().slice(0, 10));
+      const per = new Map<string, number>();
+      for (const t of inP) per.set(t.date, (per.get(t.date) ?? 0) + t.seconds);
+      return {
+        title: 'Minutes a day',
+        labels: days.map((d) => String(Number(d.slice(8)))),
+        values: days.map((d) => Math.round((per.get(d) ?? 0) / 60)),
+        format: (n: number) => `${Math.round(n)} min`,
+      };
+    }
+    const per = new Map<string, number>();
+    for (const t of inP) {
+      const key = stats.monthly ? t.date.slice(0, 7) : t.date.slice(0, 4);
+      per.set(key, (per.get(key) ?? 0) + t.seconds);
+    }
+    return {
+      title: `Hours read ${perLabel}`,
+      labels,
+      values: stats.buckets.map((b) => Math.round(((per.get(b.key) ?? 0) / 3600) * 10) / 10),
+      format: (n: number) => `${n.toLocaleString('en-US', { maximumFractionDigits: 1 })} h`,
+    };
+  });
+  const goalMinutes = $derived(library.settings.dailyGoalMinutes ?? 0);
+
   const year = new Date().getFullYear();
   const currency = $derived(library.settings.displayCurrency);
 
@@ -155,6 +193,51 @@
     {stats.undatedFinished} finished reads have no date (for example from the Goodreads import), so they only count in
     All time. Add dates on each book’s page to place them.
   </p>
+{/if}
+
+{#if timeLogs.length}
+  <h2 class="time-head">Reading time</h2>
+  <div class="tiles">
+    <StatTile label="Time read" value={formatShort(time.seconds)} />
+    <StatTile
+      label="A day on average"
+      value={formatShort(time.perDay)}
+      sub={goalMinutes ? `goal ${goalMinutes} min` : `over ${time.days} ${time.days === 1 ? 'day' : 'days'}`}
+    />
+    {#if speed.pagesPerHour || speed.charsPerHour}
+      <StatTile
+        label="Reading speed"
+        value={speed.pagesPerHour ? `${speed.pagesPerHour} pages/h` : `${formatNumber(speed.charsPerHour!)} 字/h`}
+        sub={speed.pagesPerHour && speed.charsPerHour ? `${formatNumber(speed.charsPerHour)} characters/h in Japanese` : 'from time in the reader'}
+      />
+    {/if}
+    {#if time.longest}
+      <StatTile
+        label="Longest session"
+        value={formatShort(time.longest.seconds)}
+        sub="{formatDate(time.longest.date)} · {library.item(time.longest.itemId)?.title ?? ''}"
+      />
+    {/if}
+  </div>
+  <div class="charts time-charts">
+    <section class="card">
+      <ColumnChart
+        title={timeChart.title}
+        labels={timeChart.labels}
+        series={[{ name: 'Time', color: 'var(--series-1)', values: timeChart.values }]}
+        format={timeChart.format}
+      />
+    </section>
+    {#if time.perItem.length}
+      <section class="card">
+        <BarList
+          title="Most time"
+          rows={time.perItem.slice(0, 10).map((r) => ({ name: library.item(r.itemId)?.title ?? 'Deleted item', count: Math.round(r.seconds / 60) }))}
+          format={(n) => formatShort(n * 60)}
+        />
+      </section>
+    {/if}
+  </div>
 {/if}
 
 <div class="charts">
@@ -299,6 +382,14 @@
 
   .custom .field {
     width: 11rem;
+  }
+
+  .time-head {
+    margin: 1.6rem 0 0.6rem;
+  }
+
+  .time-charts {
+    margin-bottom: 1.5rem;
   }
 
   .tiles {

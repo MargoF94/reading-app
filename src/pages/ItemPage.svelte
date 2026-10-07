@@ -9,6 +9,7 @@
   import ItemSchedule from '../components/calendar/ItemSchedule.svelte';
   import ItemFiles from '../components/ItemFiles.svelte';
   import ReadButton from '../components/reader/ReadButton.svelte';
+  import ItemTime from '../components/ItemTime.svelte';
   import { deleteItemFile } from '../lib/itemFiles';
   import { sync } from '../lib/sync.svelte';
   import ReadingDates from '../components/ReadingDates.svelte';
@@ -264,6 +265,8 @@
       </section>
 
       <ReadingHistory {item} />
+
+      <ItemTime {item} />
 
       <ItemSchedule {item} />
 

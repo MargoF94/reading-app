@@ -6,8 +6,12 @@
     formatBytes,
     MAX_FILE_BYTES,
     openWith,
+    replaceItemFile,
     uploadItemFile,
   } from '../lib/itemFiles';
+  import { draftFromEpub } from '../lib/import/epub';
+  import { ficUpdateFromDraft, type FieldChange } from '../lib/ficUpdate';
+  import type { Item as ItemT } from '../lib/types';
   import { deviceFiles } from '../lib/deviceFiles.svelte';
   import { isEpub } from '../lib/reader';
   import { library } from '../lib/store.svelte';
@@ -97,6 +101,64 @@
     }
   }
 
+  // ---- a newer version of an EPUB (e.g. an AO3 fic with new chapters) ----
+
+  let newerInput: HTMLInputElement | undefined = $state();
+  let newerFor: StoredFile | null = null;
+  let replacing = $state<{ f: StoredFile; file: File; changes: FieldChange[]; patch: Partial<ItemT> } | null>(null);
+  let replaceBusy = $state(false);
+
+  function pickNewer(f: StoredFile) {
+    newerFor = f;
+    newerInput?.click();
+  }
+
+  async function newerPicked(e: Event) {
+    const file = (e.currentTarget as HTMLInputElement).files?.[0];
+    if (newerInput) newerInput.value = '';
+    const f = newerFor;
+    if (!file || !f) return;
+    let changes: FieldChange[] = [];
+    let patch: Partial<ItemT> = {};
+    if (item.type === 'fic') {
+      try {
+        ({ changes, patch } = ficUpdateFromDraft(current(), draftFromEpub(new Uint8Array(await file.arrayBuffer()))));
+      } catch {
+        // Not an AO3 file: replace the file, keep the fic's details as they are.
+      }
+    }
+    replacing = { f, file, changes, patch };
+  }
+
+  async function confirmReplace(keepBoth: boolean) {
+    const r = replacing;
+    const cfg = sync.config;
+    if (!r || !cfg) return;
+    replaceBusy = true;
+    try {
+      const fresh = current();
+      let files = fresh.files ?? [];
+      if (keepBoth) {
+        const rec = await uploadItemFile(cfg, fresh, r.file);
+        await deviceFiles.keep(rec, r.file).catch(() => {});
+        files = [...files, rec];
+      } else {
+        const rec = await replaceItemFile(cfg, fresh, r.f, r.file);
+        await deviceFiles.forget(r.f).catch(() => {});
+        await deviceFiles.keep(rec, r.file).catch(() => {});
+        files = files.map((x) => (x.id === r.f.id ? rec : x));
+      }
+      const latest = current();
+      await library.saveItem({ ...latest, ...r.patch, files });
+      toasts.show(keepBoth ? 'Both versions kept.' : 'Updated to the newer version. Your place is kept.');
+      replacing = null;
+    } catch (err) {
+      toasts.show(err instanceof Error ? err.message : String(err), 'error');
+    } finally {
+      replaceBusy = false;
+    }
+  }
+
   async function forgetLocal(f: StoredFile) {
     if (!confirm(`Remove “${f.name}” from this device? It stays in your repository and can be downloaded again.`)) return;
     await deviceFiles.forget(f);
@@ -121,6 +183,7 @@
     {/if}
   </div>
   <input bind:this={input} type="file" accept=".epub,application/epub+zip,.pdf,.cbz,.zip,.mobi,.azw3,.txt" multiple hidden onchange={upload} />
+  <input bind:this={newerInput} type="file" accept=".epub,application/epub+zip" hidden onchange={newerPicked} />
 
   {#if files.length}
     <ul class="files">
@@ -140,8 +203,39 @@
                 {#if shareable}<button type="button" class="btn small" onclick={() => open(f)}>Open in…</button>{/if}
               </div>
             {/if}
-            {#if deviceFiles.has(f)}
-              <button type="button" class="linkish small" onclick={() => forgetLocal(f)}>Remove from this device</button>
+            <div class="row links">
+              {#if isEpub(f) && sync.config}
+                <button type="button" class="linkish small" disabled={!navigator.onLine} onclick={() => pickNewer(f)}>Upload newer version</button>
+              {/if}
+              {#if deviceFiles.has(f)}
+                <button type="button" class="linkish small" onclick={() => forgetLocal(f)}>Remove from this device</button>
+              {/if}
+            </div>
+            {#if replacing?.f.id === f.id}
+              <div class="replace card" role="group" aria-label="Replace with the newer EPUB">
+                <strong>Replace with “{replacing.file.name}”?</strong>
+                {#if replacing.changes.length}
+                  <table class="small">
+                    <tbody>
+                      {#each replacing.changes as c (c.label)}
+                        <tr><th scope="row">{c.label}</th><td>{c.from} → <strong>{c.to}</strong></td></tr>
+                      {/each}
+                    </tbody>
+                  </table>
+                {:else if item.type === 'fic'}
+                  <p class="small muted">No changes in chapters or words found in the new file.</p>
+                {/if}
+                <p class="small muted">
+                  Your place, bookmarks and quotes stay with it.{item.type === 'fic' && replacing.changes.length ? ' The fic’s details update too.' : ''}
+                </p>
+                <div class="row">
+                  <button type="button" class="btn small primary" disabled={replaceBusy} onclick={() => confirmReplace(false)}>
+                    {replaceBusy ? 'Uploading…' : 'Replace'}
+                  </button>
+                  <button type="button" class="btn small" disabled={replaceBusy} onclick={() => confirmReplace(true)}>Keep both</button>
+                  <button type="button" class="btn small ghost" disabled={replaceBusy} onclick={() => (replacing = null)}>Cancel</button>
+                </div>
+              </div>
             {/if}
           </div>
           <div class="btns">
@@ -252,6 +346,34 @@
   .here {
     color: var(--ok);
     font-weight: 600;
+  }
+
+  .links {
+    gap: 0.9rem;
+    flex-wrap: wrap;
+  }
+
+  .replace {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+  }
+
+  .replace p {
+    margin: 0;
+  }
+
+  .replace th {
+    text-align: left;
+    font-weight: normal;
+    color: var(--text-2);
+    padding: 0.1rem 1rem 0.1rem 0;
+  }
+
+  .replace .row {
+    gap: 0.4rem;
+    flex-wrap: wrap;
   }
 
   .linkish {

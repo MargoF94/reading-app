@@ -127,7 +127,10 @@ export type ToFrame =
   | { type: 'turn'; dir: 'left' | 'right' | 'next' | 'prev' }
   | { type: 'search'; query: string }
   | { type: 'clear-search' }
-  | { type: 'deselect' };
+  | { type: 'deselect' }
+  /** Saved quotes in this book, underlined on the page. */
+  | { type: 'annotations'; cfis: string[] }
+  | { type: 'bookmarks'; cfis: string[] };
 
 export type FromFrame =
   | { type: 'ready' }
@@ -140,7 +143,14 @@ export type FromFrame =
       chapterHref?: string;
       page?: number;
       pages?: number;
+      /** Start of the page, used for a bookmark. */
+      pageCfi?: string;
+      excerpt?: string;
+      /** The bookmark (its cfi) on this page, if any. */
+      bookmark?: string;
     }
+  /** An underlined quote was tapped. */
+  | { type: 'annotation'; cfi: string }
   | { type: 'tap' }
   | { type: 'key'; key: string }
   | { type: 'search-hits'; hits: SearchHit[] }

@@ -196,6 +196,31 @@
     </div>
   </section>
 
+  <section class="card stack">
+    <h2>Reading time</h2>
+    <label class="field goal">
+      <span>Daily reading goal</span>
+      <span class="row">
+        <input
+          type="number"
+          min="0"
+          max="1440"
+          step="5"
+          inputmode="numeric"
+          value={library.settings.dailyGoalMinutes ?? 0}
+          onchange={(e) => {
+            const n = Math.round(Number(e.currentTarget.value));
+            if (n >= 0 && n <= 1440) library.saveSettings({ dailyGoalMinutes: n || undefined });
+          }}
+        />
+        minutes a day
+      </span>
+      <span class="small muted">
+        Shown on Home with your streak of days in a row that reached it. 0 = no goal (then any day you read counts towards the streak).
+      </span>
+    </label>
+  </section>
+
   <ReminderSettings />
 
   <section class="card stack">
@@ -362,5 +387,8 @@
     background: var(--surface-2);
     padding: 0 0.3em;
     border-radius: 3px;
+  }
+  .goal input {
+    width: 6rem;
   }
 </style>

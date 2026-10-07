@@ -5,6 +5,10 @@
   import ItemCard from '../components/ItemCard.svelte';
   import ProgressBar from '../components/ProgressBar.svelte';
   import ProgressDialog from '../components/ProgressDialog.svelte';
+  import TodayCard from '../components/TodayCard.svelte';
+  import TimerButton from '../components/TimerButton.svelte';
+  import { formatDuration, timeLeft } from '../lib/readingTime';
+  import { percentOf, readableFile } from '../lib/reader';
   import { activeReading, entryLabel, entryPercent, lastFinishDate, latestEntry, unreadChapters } from '../lib/reading';
   import { library } from '../lib/store.svelte';
   import type { Item } from '../lib/types';
@@ -75,6 +79,7 @@
     </p>
   </div>
 {:else}
+  <TodayCard />
   <HomePlanner />
 
   <div class="stats">
@@ -93,13 +98,25 @@
       <div class="current">
         {#each readingShown as item (item.id)}
           {@const p = progress(item)}
+          {@const epub = readableFile(item)}
+          {@const left = epub?.position ? timeLeft(library.timeFor(item.id), epub.position.fraction) : undefined}
           <div class="card now">
             <a href="#/item/{item.id}" style="text-decoration:none"><Cover {item} width={72} /></a>
             <div class="now-info">
               <a class="title" href="#/item/{item.id}">{item.title}</a>
               <span class="small muted">{library.authorNames(item)}</span>
               <ProgressBar percent={p.percent} label={p.label} />
-              <button type="button" class="btn small" onclick={() => (updating = item)}>Update progress</button>
+              {#if left !== undefined}<span class="small muted">about {formatDuration(left)} left</span>{/if}
+              <div class="row now-actions">
+                {#if epub}
+                  <a class="btn small primary" href="#/read/{item.id}/{epub.id}">
+                    {epub.position?.fraction ? `Continue · ${percentOf(epub.position.fraction)}%` : 'Read'}
+                  </a>
+                {:else}
+                  <TimerButton {item} />
+                {/if}
+                <button type="button" class="btn small" onclick={() => (updating = item)}>Update progress</button>
+              </div>
             </div>
           </div>
         {/each}
@@ -272,5 +289,13 @@
     .grid {
       grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     }
+  }
+  .now-actions {
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .now-actions .btn.primary {
+    text-decoration: none;
   }
 </style>

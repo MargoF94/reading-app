@@ -1,11 +1,15 @@
 <script lang="ts">
-  import type { SearchHit, TocEntry } from '../../lib/reader';
+  import { percentOf, type SearchHit, type TocEntry } from '../../lib/reader';
+  import type { Quote, ReaderBookmark } from '../../lib/types';
   import Icon from '../Icon.svelte';
 
-  // The book's chapters, and search inside the book.
+  // The book's chapters, your bookmarks and quotes in it, and search inside the book.
   let {
     toc,
     current,
+    bookmarks,
+    quotes,
+    onremovebookmark,
     hits,
     searching,
     searched,
@@ -15,6 +19,9 @@
   }: {
     toc: TocEntry[];
     current?: string;
+    bookmarks: ReaderBookmark[];
+    quotes: Quote[];
+    onremovebookmark: (id: string) => void;
     hits: SearchHit[];
     searching: boolean;
     searched: string;
@@ -24,7 +31,16 @@
   } = $props();
 
   // svelte-ignore state_referenced_locally
-  let tab = $state<'chapters' | 'search'>(searched ? 'search' : 'chapters');
+  type Tab = 'chapters' | 'bookmarks' | 'quotes' | 'search';
+  // svelte-ignore state_referenced_locally
+  let tab = $state<Tab>(searched ? 'search' : 'chapters');
+  const TABS: [Tab, string][] = [
+    ['chapters', 'Chapters'],
+    ['bookmarks', 'Bookmarks'],
+    ['quotes', 'Quotes'],
+    ['search', 'Search'],
+  ];
+  const date = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   // svelte-ignore state_referenced_locally
   let query = $state(searched);
   let list: HTMLElement | undefined = $state();
@@ -45,8 +61,9 @@
     <button type="button" class="btn ghost icon" aria-label="Close contents" onclick={onclose}><Icon name="close" /></button>
   </div>
   <div class="seg" role="tablist" aria-label="Show">
-    <button type="button" role="tab" aria-selected={tab === 'chapters'} class:on={tab === 'chapters'} onclick={() => (tab = 'chapters')}>Chapters</button>
-    <button type="button" role="tab" aria-selected={tab === 'search'} class:on={tab === 'search'} onclick={() => (tab = 'search')}>Search in book</button>
+    {#each TABS as [t, label] (t)}
+      <button type="button" role="tab" aria-selected={tab === t} class:on={tab === t} onclick={() => (tab = t)}>{label}</button>
+    {/each}
   </div>
 
   {#if tab === 'chapters'}
@@ -69,6 +86,44 @@
       </ol>
     {:else}
       <p class="small muted">This book has no table of contents.</p>
+    {/if}
+  {:else if tab === 'bookmarks'}
+    {#if bookmarks.length}
+      <ol class="toc marks">
+        {#each bookmarks as b (b.id)}
+          <li>
+            <button type="button" class="mark-row" onclick={() => ongo(b.cfi)}>
+              <span class="label">
+                <strong>{[b.chapter, `${percentOf(b.fraction)}%`].filter(Boolean).join(' · ')}</strong>
+                {#if b.excerpt}<span class="small muted ex">“{b.excerpt}…”</span>{/if}
+              </span>
+              <span class="pct">{date(b.at)}</span>
+            </button>
+            <button type="button" class="btn ghost icon small rm" aria-label="Remove bookmark" onclick={() => onremovebookmark(b.id)}>
+              <Icon name="close" size={16} />
+            </button>
+          </li>
+        {/each}
+      </ol>
+    {:else}
+      <p class="small muted">No bookmarks yet. Tap the middle of a page, then the bookmark at the top.</p>
+    {/if}
+  {:else if tab === 'quotes'}
+    {#if quotes.length}
+      <ol class="toc">
+        {#each quotes as q (q.id)}
+          <li>
+            <button type="button" onclick={() => ongo(q.cfi!)}>
+              <span class="label">
+                <span class="qt">“{q.text.length > 160 ? q.text.slice(0, 160) + '…' : q.text}”</span>
+                {#if q.location}<span class="small muted">{q.location}</span>{/if}
+              </span>
+            </button>
+          </li>
+        {/each}
+      </ol>
+    {:else}
+      <p class="small muted">No quotes saved in the reader yet. Select text on a page, then Save quote.</p>
     {/if}
   {:else}
     <form class="search" onsubmit={submit}>
@@ -147,8 +202,8 @@
     border: none;
     background: none;
     font: inherit;
-    font-size: 0.9rem;
-    padding: 0.45em 0.3em;
+    font-size: 0.85rem;
+    padding: 0.45em 0.2em;
     border-radius: 5px;
     color: var(--text-2);
     cursor: pointer;
@@ -195,6 +250,40 @@
   .label {
     min-width: 0;
     overflow-wrap: anywhere;
+  }
+
+  .marks li {
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .marks .mark-row {
+    border-bottom: none;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .ex {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .qt {
+    font-family: var(--font-serif);
+  }
+
+  .rm {
+    flex-shrink: 0;
   }
 
   .pct {

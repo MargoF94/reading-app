@@ -26,7 +26,11 @@
   import { library } from '../lib/store.svelte';
   import { sync } from '../lib/sync.svelte';
   import { toasts } from '../lib/toast.svelte';
-  import { debounce, nowIso } from '../lib/util';
+  import { quoteText } from '../lib/quotes';
+  import type { Quote, ReaderBookmark } from '../lib/types';
+  import { debounce, newId, nowIso, today } from '../lib/util';
+  import { formatDuration, timeLeft } from '../lib/readingTime';
+  import type { ReadingTime } from '../lib/types';
 
   // Full-screen EPUB reader. The book itself is shown by reader-frame.html (locked
   // down so scripts inside books can't run); this page holds the controls, saves
@@ -44,7 +48,7 @@
   let error = $state('');
   let prefs = $state<ReaderPrefs>({ ...DEFAULT_PREFS });
   let controls = $state(false);
-  let sheet = $state<null | 'settings' | 'contents' | 'quote' | 'word'>(null);
+  let sheet = $state<null | 'settings' | 'contents' | 'quote' | 'word' | 'edit-quote'>(null);
   // Text selected in the book, to save as a quote or look up as a word.
   let selection = $state<{ text: string; cfi?: string; sentence?: string } | null>(null);
   const word = $derived(selection ? selectedWord(selection.text) : undefined);
@@ -56,7 +60,16 @@
     picked = { ...selection, word, location: quoteLocation(loc.chapter, loc.fraction) };
     sheet = kind;
   }
-  let loc = $state<{ fraction: number; chapter?: string; chapterHref?: string; page?: number; pages?: number }>({ fraction: 0 });
+  let loc = $state<{
+    fraction: number;
+    chapter?: string;
+    chapterHref?: string;
+    page?: number;
+    pages?: number;
+    pageCfi?: string;
+    excerpt?: string;
+    bookmark?: string;
+  }>({ fraction: 0 });
   let toc = $state.raw<TocEntry[]>([]);
   let bookLang = $state('');
   let rtl = $state(false);
@@ -73,6 +86,61 @@
   const colors = $derived(THEME_COLORS[prefs.theme]);
   const percent = $derived(percentOf(dragging ?? loc.fraction));
   const chapterIndex = $derived(toc.findIndex((t) => t.href === loc.chapterHref));
+
+  // ---- bookmarks and saved quotes in this book ----
+
+  const bookmarks = $derived(stored?.bookmarks ?? []);
+  const bookQuotes = $derived(library.quotesFor(itemId).filter((q) => q.fileId === fileId && q.cfi));
+  let shownQuote = $state<Quote | null>(null); // an underlined quote that was tapped
+  let editingQuote = $state<Quote | null>(null);
+
+  $effect(() => {
+    if (phase !== 'reading') return;
+    post({ type: 'bookmarks', cfis: bookmarks.map((b) => b.cfi) });
+  });
+  $effect(() => {
+    if (phase !== 'reading') return;
+    post({ type: 'annotations', cfis: bookQuotes.map((q) => q.cfi!) });
+  });
+
+  async function toggleBookmark() {
+    const list = $state.snapshot(bookmarks) as ReaderBookmark[];
+    if (loc.bookmark) {
+      await library.updateFile(itemId, fileId, { bookmarks: list.filter((b) => b.cfi !== loc.bookmark) });
+      toasts.show('Bookmark removed.');
+    } else if (loc.pageCfi) {
+      const b: ReaderBookmark = {
+        id: newId(),
+        cfi: loc.pageCfi,
+        fraction: loc.fraction,
+        chapter: loc.chapter,
+        excerpt: loc.excerpt,
+        at: nowIso(),
+      };
+      await library.updateFile(itemId, fileId, { bookmarks: [...list, b].sort((x, y) => x.fraction - y.fraction) });
+      toasts.show('Page bookmarked.');
+    }
+  }
+
+  async function removeBookmark(id: string) {
+    const list = $state.snapshot(bookmarks) as ReaderBookmark[];
+    await library.updateFile(itemId, fileId, { bookmarks: list.filter((b) => b.id !== id) });
+  }
+
+  async function copyQuote(q: Quote) {
+    try {
+      await navigator.clipboard.writeText(quoteText(q, item ? { title: item.title, by: library.authorNames(item) } : undefined));
+      toasts.show('Quote copied.');
+    } catch {
+      toasts.show('Couldn’t copy.', 'error');
+    }
+  }
+
+  async function removeQuote(q: Quote) {
+    if (!confirm('Remove this quote?')) return;
+    await library.deleteQuote(q);
+    shownQuote = null;
+  }
 
   const post = (m: ToFrame) => frame?.contentWindow?.postMessage(m, location.origin);
 
@@ -107,6 +175,79 @@
     }
   }
 
+  // ---- time spent reading ----
+  // Counted while the book is on screen and pages keep turning: a few minutes
+  // without a page turn, tap or key press (or leaving the app) pauses it.
+
+  const IDLE_MS = 3 * 60_000;
+  const TICK_MS = 5000;
+  let activeUntil = 0;
+  let lastTick = Date.now();
+  let session: ReadingTime | null = null;
+  let savedSeconds = 0;
+
+  let sinceActivity = 0; // seconds counted since the last page turn or tap
+  const GRACE_S = 60; // after that, time only counts if reading carries on
+
+  const activity = () => {
+    activeUntil = Date.now() + IDLE_MS;
+    sinceActivity = 0;
+  };
+
+  function tick() {
+    const now = Date.now();
+    const dt = Math.min(now - lastTick, TICK_MS * 2);
+    lastTick = now;
+    if (phase !== 'reading' || visiting || document.visibilityState !== 'visible') return;
+    if (now > activeUntil) {
+      // Gone idle: keep a minute for the last page, drop the rest of the wait.
+      if (session && sinceActivity > GRACE_S) {
+        session.seconds = Math.max(0, session.seconds - (sinceActivity - GRACE_S));
+        sinceActivity = GRACE_S;
+        void saveTime();
+      }
+      return;
+    }
+    const date = today();
+    if (session && session.date !== date) endSession();
+    session ??= {
+      id: newId(),
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      itemId,
+      date,
+      start: nowIso(),
+      seconds: 0,
+      source: 'reader',
+      from: loc.fraction,
+      to: loc.fraction,
+    };
+    session.seconds += dt / 1000;
+    sinceActivity += dt / 1000;
+    session.to = loc.fraction;
+    if (session.seconds - savedSeconds >= 60) void saveTime();
+  }
+
+  async function saveTime() {
+    const s = session;
+    if (!s || (s.seconds < 30 && savedSeconds === 0) || s.seconds === savedSeconds) return;
+    savedSeconds = s.seconds;
+    await library.saveTime({ ...s, seconds: Math.round(s.seconds) });
+  }
+
+  /** Ends the session (a new one starts with the next page). */
+  function endSession() {
+    void saveTime();
+    session = null;
+    savedSeconds = 0;
+  }
+
+  const timeLogs = $derived(library.timeFor(itemId));
+  const leftInBook = $derived(timeLeft(timeLogs, loc.fraction));
+  const leftInChapter = $derived(
+    chapterIndex >= 0 ? timeLeft(timeLogs, loc.fraction, toc[chapterIndex + 1]?.fraction ?? 1) : undefined,
+  );
+
   // ---- messages from the frame ----
 
   function onMessage(e: MessageEvent<FromFrame>) {
@@ -118,6 +259,7 @@
         openWhenReady();
         break;
       case 'opened':
+        activity();
         toc = m.toc;
         bookLang = m.language ?? item?.language ?? '';
         rtl = m.rtl;
@@ -125,12 +267,30 @@
         void markStarted();
         break;
       case 'relocate':
-        loc = { fraction: m.fraction, chapter: m.chapter, chapterHref: m.chapterHref, page: m.page, pages: m.pages };
+        // A jump (contents, slider, link) ends the session so it doesn't count as reading speed.
+        if (session && Math.abs(m.fraction - (session.to ?? m.fraction)) > 0.05) endSession();
+        activity();
+        loc = {
+          fraction: m.fraction,
+          chapter: m.chapter,
+          chapterHref: m.chapterHref,
+          page: m.page,
+          pages: m.pages,
+          pageCfi: m.pageCfi,
+          excerpt: m.excerpt,
+          bookmark: m.bookmark,
+        };
         pending = { cfi: m.cfi, fraction: m.fraction };
         saveSoon();
         break;
+      case 'annotation':
+        shownQuote = bookQuotes.find((q) => q.cfi === m.cfi) ?? null;
+        controls = false;
+        break;
       case 'tap':
-        if (sheet) sheet = null;
+        activity();
+        if (shownQuote) shownQuote = null;
+        else if (sheet) sheet = null;
         else controls = !controls;
         break;
       case 'key':
@@ -143,6 +303,7 @@
         searching = false;
         break;
       case 'selection':
+        activity();
         selection = m.text ? { text: m.text, cfi: m.cfi, sentence: m.sentence } : null;
         if (selection) controls = false;
         break;
@@ -154,13 +315,15 @@
   }
 
   function escape() {
-    if (sheet) sheet = null;
+    if (shownQuote) shownQuote = null;
+    else if (sheet) sheet = null;
     else if (selection) clearSelection();
     else if (controls) controls = false;
     else void close();
   }
 
   function onKey(e: KeyboardEvent) {
+    activity();
     if ((e.target as HTMLElement)?.closest?.('input, textarea, select')) return;
     if (e.key === 'Escape') escape();
     else if (!sheet && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) post({ type: 'turn', dir: e.key === 'ArrowLeft' ? 'left' : 'right' });
@@ -218,8 +381,12 @@
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     const themeColor = meta?.content;
     const flush = () => {
-      if (document.visibilityState === 'hidden') void save();
+      if (document.visibilityState === 'hidden') {
+        void save();
+        void saveTime();
+      } else activity();
     };
+    const timer = setInterval(tick, TICK_MS);
     document.addEventListener('visibilitychange', flush);
     window.addEventListener('pagehide', flush);
 
@@ -247,6 +414,9 @@
       if (meta && themeColor) meta.content = themeColor;
       document.removeEventListener('visibilitychange', flush);
       window.removeEventListener('pagehide', flush);
+      clearInterval(timer);
+      tick();
+      void saveTime();
       void save();
     };
   });
@@ -295,6 +465,30 @@
     </div>
   {/if}
 
+  {#if shownQuote && !sheet}
+    <div class="quote-pop" role="dialog" aria-label="Saved quote">
+      <div class="row qp-head">
+        <span class="small muted">Your quote{shownQuote.location ? ` · ${shownQuote.location}` : ''}</span>
+        <button type="button" class="btn ghost icon small" aria-label="Close" onclick={() => (shownQuote = null)}><Icon name="close" size={16} /></button>
+      </div>
+      <blockquote>{shownQuote.text}</blockquote>
+      {#if shownQuote.note}<p class="small muted qp-note">{shownQuote.note}</p>{/if}
+      <div class="row qp-actions">
+        <button
+          type="button"
+          class="btn small"
+          onclick={() => {
+            editingQuote = shownQuote;
+            shownQuote = null;
+            sheet = 'edit-quote';
+          }}><Icon name="edit" size={15} /> Edit</button
+        >
+        <button type="button" class="btn small" onclick={() => copyQuote(shownQuote!)}><Icon name="copy" size={15} /> Copy</button>
+        <button type="button" class="btn ghost small danger-text" onclick={() => removeQuote(shownQuote!)}>Remove</button>
+      </div>
+    </div>
+  {/if}
+
   {#if phase === 'reading' && selection && !sheet}
     <div class="select-bar" role="toolbar" aria-label="Selected text">
       <button type="button" class="btn primary small" onclick={() => pick('quote')}><Icon name="quote" size={16} /> Save quote</button>
@@ -308,7 +502,7 @@
   {:else if phase === 'reading' && !controls && !sheet}
     <div class="status-line" aria-hidden="true">
       <span class="ch">{loc.chapter ?? ''}{loc.pages ? ` · ${loc.page} / ${loc.pages}` : ''}</span>
-      <span>{percent}%</span>
+      <span class="right">{leftInChapter !== undefined ? `${formatDuration(leftInChapter)} left in chapter · ` : ''}{percent}%</span>
     </div>
   {/if}
 
@@ -317,6 +511,16 @@
       <button type="button" class="btn ghost icon" aria-label="Close the book" onclick={close}><Icon name="back" size={22} /></button>
       <span class="title">{item?.title ?? ''}</span>
       {#if phase === 'reading'}
+        <button
+          type="button"
+          class="btn ghost icon bm"
+          class:on={!!loc.bookmark}
+          aria-pressed={!!loc.bookmark}
+          aria-label={loc.bookmark ? 'Remove bookmark' : 'Bookmark this page'}
+          onclick={toggleBookmark}
+        >
+          <Icon name="bookmark" size={22} />
+        </button>
         <button type="button" class="btn ghost icon" aria-label="Contents and search" onclick={() => (sheet = 'contents')}>
           <Icon name="list" size={22} />
         </button>
@@ -349,7 +553,10 @@
         <button type="button" class="btn ghost small" disabled={chapterIndex <= 0} onclick={() => go(toc[chapterIndex - 1].href)}>
           ‹ Previous chapter
         </button>
-        <strong class="pct">{percent}%</strong>
+        <span class="mid">
+          <strong class="pct">{percent}%</strong>
+          {#if leftInBook !== undefined}<span class="muted left">about {formatDuration(leftInBook)} left</span>{/if}
+        </span>
         <button
           type="button"
           class="btn ghost small"
@@ -383,7 +590,23 @@
       />
     </ReaderSheet>
   {:else if sheet === 'contents'}
-    <ReaderContents {toc} current={loc.chapterHref} {hits} {searching} {searched} ongo={go} onsearch={search} onclose={closeSheet} />
+    <ReaderContents
+      {toc}
+      current={loc.chapterHref}
+      {bookmarks}
+      quotes={bookQuotes}
+      {hits}
+      {searching}
+      {searched}
+      ongo={go}
+      onsearch={search}
+      onremovebookmark={removeBookmark}
+      onclose={closeSheet}
+    />
+  {:else if sheet === 'edit-quote' && item && editingQuote}
+    <ReaderSheet title="Edit quote" onclose={closeSheet}>
+      <QuoteForm {item} quote={editingQuote} onclose={closeSheet} onsaved={() => toasts.show('Quote saved.')} />
+    </ReaderSheet>
   {/if}
 </div>
 
@@ -445,6 +668,63 @@
     font-variant-numeric: tabular-nums;
   }
 
+  .bm.on :global(svg) {
+    fill: currentColor;
+  }
+
+  .bm.on {
+    color: var(--accent);
+  }
+
+  .quote-pop {
+    position: absolute;
+    left: 0.9rem;
+    right: 0.9rem;
+    bottom: calc(env(safe-area-inset-bottom) + 2.6rem);
+    z-index: 2;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.6rem 0.8rem 0.7rem;
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.2);
+    max-height: 50%;
+    overflow-y: auto;
+  }
+
+  @media (min-width: 700px) {
+    .quote-pop {
+      left: 50%;
+      right: auto;
+      width: 460px;
+      translate: -50% 0;
+    }
+  }
+
+  .qp-head {
+    justify-content: space-between;
+  }
+
+  .quote-pop blockquote {
+    margin: 0.2rem 0 0;
+    font-family: var(--font-serif);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .qp-note {
+    margin: 0.4rem 0 0;
+  }
+
+  .qp-actions {
+    gap: 0.4rem;
+    margin-top: 0.6rem;
+  }
+
+  .danger-text {
+    color: var(--danger);
+  }
+
   .select-bar {
     position: absolute;
     left: 0.75rem;
@@ -483,11 +763,83 @@
   }
 
   @media (min-width: 700px) {
-    .select-bar {
+    .bm.on :global(svg) {
+    fill: currentColor;
+  }
+
+  .bm.on {
+    color: var(--accent);
+  }
+
+  .quote-pop {
+    position: absolute;
+    left: 0.9rem;
+    right: 0.9rem;
+    bottom: calc(env(safe-area-inset-bottom) + 2.6rem);
+    z-index: 2;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.6rem 0.8rem 0.7rem;
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.2);
+    max-height: 50%;
+    overflow-y: auto;
+  }
+
+  @media (min-width: 700px) {
+    .quote-pop {
+      left: 50%;
+      right: auto;
+      width: 460px;
+      translate: -50% 0;
+    }
+  }
+
+  .qp-head {
+    justify-content: space-between;
+  }
+
+  .quote-pop blockquote {
+    margin: 0.2rem 0 0;
+    font-family: var(--font-serif);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .qp-note {
+    margin: 0.4rem 0 0;
+  }
+
+  .qp-actions {
+    gap: 0.4rem;
+    margin-top: 0.6rem;
+  }
+
+  .danger-text {
+    color: var(--danger);
+  }
+
+  .select-bar {
       left: 50%;
       right: auto;
       translate: -50% 0;
     }
+  }
+
+  .status-line .right {
+    white-space: nowrap;
+  }
+
+  .mid {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.2;
+  }
+
+  .mid .left {
+    font-size: 0.75rem;
   }
 
   .ch {

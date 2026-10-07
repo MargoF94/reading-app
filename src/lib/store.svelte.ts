@@ -23,6 +23,8 @@ import type {
   VocabWord,
   Quote,
   ReaderPosition,
+  ReadingTime,
+  StoredFile,
 } from './types';
 import { collator, newId, normalize, nowIso, today } from './util';
 
@@ -67,6 +69,11 @@ class Library {
   /** Saved quotes, in the order they were added. */
   quotes = $derived(
     this.data.quotes.filter((q) => !q.deleted).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+  );
+
+  /** Time spent reading, oldest first. */
+  readingTime = $derived(
+    this.data.readingTime.filter((t) => !t.deleted).sort((a, b) => (a.start ?? a.date).localeCompare(b.start ?? b.date)),
   );
 
   /** Planned reading sessions. */
@@ -250,6 +257,7 @@ class Library {
     await this.remove('readings', this.readings(item.id));
     await this.remove('vocabulary', this.wordsFor(item.id));
     await this.remove('quotes', this.quotesFor(item.id));
+    await this.remove('readingTime', this.timeFor(item.id));
     await this.remove('schedule', this.schedule.filter((s) => s.itemId === item.id));
     await this.remove('items', [item]);
     await discardCover(item.coverUrl);
@@ -282,6 +290,13 @@ class Library {
     const changes = transition(item, this.readings(item.id), target, date, nowIso());
     await this.put('readings', changes.upsert);
     await this.remove('readings', changes.remove);
+  }
+
+  /** Changes one stored file of an item (bookmarks, …). */
+  async updateFile(itemId: string, fileId: string, patch: Partial<StoredFile>): Promise<void> {
+    const item = this.item(itemId);
+    if (!item?.files?.some((f) => f.id === fileId)) return;
+    await this.put('items', [{ ...item, files: item.files.map((f) => (f.id === fileId ? { ...f, ...patch } : f)) }]);
   }
 
   /** Where reading stopped in an EPUB, kept on the file so other devices continue there. */
@@ -350,6 +365,20 @@ class Library {
 
   async deleteWord(word: VocabWord): Promise<void> {
     await this.remove('vocabulary', [word]);
+  }
+
+  // ---- reading time ---------------------------------------------------------
+
+  timeFor(itemId: string): ReadingTime[] {
+    return this.readingTime.filter((t) => t.itemId === itemId);
+  }
+
+  async saveTime(t: ReadingTime): Promise<void> {
+    await this.put('readingTime', [t]);
+  }
+
+  async deleteTime(t: ReadingTime): Promise<void> {
+    await this.remove('readingTime', [t]);
   }
 
   // ---- quotes -------------------------------------------------------------
