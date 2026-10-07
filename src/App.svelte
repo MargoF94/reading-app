@@ -144,6 +144,11 @@
       {#key seg[2]}<YearInBooks year={Number(seg[2]) || new Date().getFullYear()} />{/key}
     {:else if seg[0] === 'stats'}
       <Stats />
+    {:else if seg[0] === 'read' && seg[1] && seg[2]}
+      <!-- The reader (and its EPUB code) loads only when a book is opened. -->
+      {#await import('./pages/Reader.svelte') then { default: Reader }}
+        {#key seg[1] + '/' + seg[2]}<Reader itemId={seg[1]} fileId={seg[2]} />{/key}
+      {/await}
     {:else}
       <NotFound />
     {/if}

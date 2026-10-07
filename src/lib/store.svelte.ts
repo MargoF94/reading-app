@@ -4,6 +4,7 @@ import { defaultSettings } from './constants';
 import { discardCover } from './covers';
 import * as db from './db';
 import { emptyCollections, mergeCollections } from './merge';
+import { readerProgress } from './reader';
 import { deriveStatus, sortReadings, transition } from './reading';
 import { COLLECTION_NAMES } from './types';
 import type {
@@ -21,6 +22,7 @@ import type {
   Status,
   VocabWord,
   Quote,
+  ReaderPosition,
 } from './types';
 import { collator, newId, normalize, nowIso, today } from './util';
 
@@ -280,6 +282,20 @@ class Library {
     const changes = transition(item, this.readings(item.id), target, date, nowIso());
     await this.put('readings', changes.upsert);
     await this.remove('readings', changes.remove);
+  }
+
+  /** Where reading stopped in an EPUB, kept on the file so other devices continue there. */
+  async saveReaderPosition(itemId: string, fileId: string, position: ReaderPosition): Promise<void> {
+    const item = this.item(itemId);
+    const file = item?.files?.find((f) => f.id === fileId);
+    if (!item || !file || file.position?.cfi === position.cfi) return;
+    await this.put('items', [{ ...item, files: item.files!.map((f) => (f.id === fileId ? { ...f, position } : f)) }]);
+  }
+
+  /** Records reader progress (percent) on the current read-through, if there is one. */
+  async logReaderProgress(itemId: string, percent: number, date = today()): Promise<void> {
+    const updated = readerProgress(this.readings(itemId), percent, date, nowIso());
+    if (updated) await this.put('readings', [updated]);
   }
 
   async saveReading(reading: Reading): Promise<void> {

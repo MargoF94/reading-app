@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- EPUBs may contain scripts. Pages of the book are shown in frames that inherit this
+         policy, so nothing but this app's own code can run here. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' blob: data:; script-src 'self'; style-src 'self' blob: data: 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self' blob: data:; media-src 'self' blob: data:; connect-src 'self' blob: data:; frame-src 'self' blob: data:; object-src 'none'; form-action 'none'; base-uri 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reader</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+      foliate-view { display: block; width: 100%; height: 100%; }
+    </style>
+  </head>
+  <body>
+    <script type="module" src="/src/reader/frame.ts"></script>
+  </body>
+</html>

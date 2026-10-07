@@ -8,6 +8,8 @@
     openWith,
     uploadItemFile,
   } from '../lib/itemFiles';
+  import { deviceFiles } from '../lib/deviceFiles.svelte';
+  import { isEpub } from '../lib/reader';
   import { library } from '../lib/store.svelte';
   import { sync } from '../lib/sync.svelte';
   import { toasts } from '../lib/toast.svelte';
@@ -28,6 +30,8 @@
 
   const current = () => library.item(item.id) ?? item;
 
+  $effect(() => void deviceFiles.load());
+
   async function upload(e: Event) {
     const list = [...((e.currentTarget as HTMLInputElement).files ?? [])];
     if (input) input.value = '';
@@ -37,6 +41,8 @@
       uploading = [...uploading, file.name];
       try {
         const rec = await uploadItemFile(cfg, current(), file);
+        // Keep EPUBs on this device too, so they open in the reader right away.
+        if (isEpub(rec)) await deviceFiles.keep(rec, file).catch(() => {});
         const fresh = current();
         await library.saveItem({ ...fresh, files: [...(fresh.files ?? []), rec] });
         toasts.show(`Saved “${file.name}” to your repository.`);
@@ -50,10 +56,10 @@
 
   async function get(f: StoredFile) {
     const cfg = sync.config;
-    if (!cfg) return;
+    if (!cfg && !deviceFiles.has(f)) return;
     busy = { ...busy, [f.id]: 'get' };
     try {
-      const file = await downloadItemFile(cfg, f);
+      const file = isEpub(f) ? await deviceFiles.fetch(cfg, f) : await downloadItemFile(cfg!, f);
       ready = { ...ready, [f.id]: { file, url: URL.createObjectURL(file) } };
     } catch (err) {
       toasts.show(err instanceof Error ? err.message : String(err), 'error');
@@ -79,6 +85,7 @@
     busy = { ...busy, [f.id]: 'delete' };
     try {
       await deleteItemFile(cfg, current(), f);
+      await deviceFiles.forget(f).catch(() => {});
       const fresh = current();
       await library.saveItem({ ...fresh, files: (fresh.files ?? []).filter((x) => x.id !== f.id) });
       toasts.show('File deleted.');
@@ -88,6 +95,15 @@
       const { [f.id]: _, ...rest } = busy;
       busy = rest;
     }
+  }
+
+  async function forgetLocal(f: StoredFile) {
+    if (!confirm(`Remove “${f.name}” from this device? It stays in your repository and can be downloaded again.`)) return;
+    await deviceFiles.forget(f);
+    const { [f.id]: _, ...rest } = ready;
+    if (_) URL.revokeObjectURL(_.url);
+    ready = rest;
+    toasts.show('Removed from this device.');
   }
 
   $effect(() => () => {
@@ -114,24 +130,35 @@
           <Icon name="book" size={20} />
           <div class="info">
             <span class="name">{f.name}</span>
-            <span class="small muted">{formatBytes(f.size)} · added {formatDate(f.addedAt.slice(0, 10))}</span>
+            <span class="small muted">
+              {formatBytes(f.size)} · added {formatDate(f.addedAt.slice(0, 10))}
+              {#if deviceFiles.has(f)}· <span class="here">on this device</span>{/if}
+            </span>
             {#if r}
               <div class="row actions">
                 <a class="btn small primary" href={r.url} download={f.name}><Icon name="download" size={15} /> Save</a>
                 {#if shareable}<button type="button" class="btn small" onclick={() => open(f)}>Open in…</button>{/if}
               </div>
             {/if}
+            {#if deviceFiles.has(f)}
+              <button type="button" class="linkish small" onclick={() => forgetLocal(f)}>Remove from this device</button>
+            {/if}
           </div>
           <div class="btns">
+            {#if isEpub(f) && (sync.config || deviceFiles.has(f))}
+              <a class="btn small primary" href="#/read/{item.id}/{f.id}" aria-label="Read “{f.name}”">
+                {f.position && f.position.fraction > 0 ? 'Continue' : 'Read'}
+              </a>
+            {/if}
             {#if !r}
               <button
                 type="button"
                 class="btn small"
-                disabled={!sync.config || !!busy[f.id] || !navigator.onLine}
+                disabled={!!busy[f.id] || (!deviceFiles.has(f) && (!sync.config || !navigator.onLine))}
                 onclick={() => get(f)}
-                aria-label="Download “{f.name}”"
+                aria-label="Save or share “{f.name}”"
               >
-                {busy[f.id] === 'get' ? 'Getting…' : 'Download'}
+                {busy[f.id] === 'get' ? 'Getting…' : isEpub(f) ? 'Save…' : 'Download'}
               </button>
             {/if}
             <button
@@ -220,6 +247,26 @@
     align-items: center;
     gap: 0.2rem;
     flex-shrink: 0;
+  }
+
+  .here {
+    color: var(--ok);
+    font-weight: 600;
+  }
+
+  .linkish {
+    align-self: flex-start;
+    border: none;
+    background: none;
+    padding: 0.2rem 0;
+    font: inherit;
+    color: var(--text-2);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  .btns .btn.primary {
+    text-decoration: none;
   }
 
   .uploading {

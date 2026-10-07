@@ -8,6 +8,7 @@
   import ItemQuotes from '../components/quotes/ItemQuotes.svelte';
   import ItemSchedule from '../components/calendar/ItemSchedule.svelte';
   import ItemFiles from '../components/ItemFiles.svelte';
+  import ReadButton from '../components/reader/ReadButton.svelte';
   import { deleteItemFile } from '../lib/itemFiles';
   import { sync } from '../lib/sync.svelte';
   import ReadingDates from '../components/ReadingDates.svelte';
@@ -154,6 +155,7 @@
         <Cover {item} width="var(--hero-cover)" />
         <span class="cover-hint"><Icon name="edit" size={14} /> Change cover</span>
       </button>
+      <ReadButton {item} />
     </div>
     <div class="main-col">
       <h1>{item.title}</h1>
@@ -391,6 +393,14 @@
   .progress {
     width: 100%;
     max-width: 360px;
+  }
+
+  .cover-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    width: var(--hero-cover);
+    max-width: 100%;
   }
 
   .cover-btn {

@@ -8,6 +8,15 @@ export interface MetaRow {
   value: unknown;
 }
 
+/** An EPUB kept on this device for the reader (the original stays in the data repo). */
+export interface DeviceFile {
+  path: string; // same as StoredFile.path
+  blob: Blob;
+  name: string;
+  type: string;
+  savedAt: string;
+}
+
 /** A cover photo uploaded from this device, or downloaded from the data repo. */
 export interface CoverFile {
   path: string; // e.g. covers/<item id>-<stamp>.webp
@@ -18,6 +27,7 @@ export interface CoverFile {
 class ReadingDb extends Dexie {
   meta!: Table<MetaRow, string>;
   coverFiles!: Table<CoverFile, string>;
+  deviceFiles!: Table<DeviceFile, string>;
 
   constructor() {
     super('reading-app');
@@ -30,6 +40,7 @@ class ReadingDb extends Dexie {
     this.version(3).stores({ ...without('schedule', 'quotes'), coverFiles: 'path' }); // + vocabulary
     this.version(4).stores({ ...without('quotes'), coverFiles: 'path' }); // + schedule
     this.version(5).stores({ ...schema, coverFiles: 'path' }); // + quotes
+    this.version(6).stores({ ...schema, coverFiles: 'path', deviceFiles: 'path' }); // + EPUBs kept for the reader
   }
 
   table_(name: keyof Collections): Table<BaseRecord, string> {

@@ -2,11 +2,21 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
+import { fileURLToPath } from 'node:url';
 
 // Relative base so the build works at https://<user>.github.io/reading-app/
 // (and anywhere else) without hard-coding the repo name.
 export default defineConfig({
   base: './',
+  build: {
+    rollupOptions: {
+      // The EPUB reader runs in its own page, locked down so scripts inside books can't run.
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        reader: fileURLToPath(new URL('./reader-frame.html', import.meta.url)),
+      },
+    },
+  },
   plugins: [
     svelte(),
     VitePWA({

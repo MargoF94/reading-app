@@ -99,6 +99,14 @@ export interface StoredFile {
   size: number; // bytes
   type?: string; // MIME type
   addedAt: string; // ISO timestamp
+  /** Where reading stopped in the in-app reader (EPUBs). Synced, so another device continues there. */
+  position?: ReaderPosition;
+}
+
+export interface ReaderPosition {
+  cfi: string; // EPUB CFI of the place on the page
+  fraction: number; // 0–1 through the book
+  at: string; // ISO timestamp of the last page turn
 }
 
 export interface Item extends BaseRecord {
