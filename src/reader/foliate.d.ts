@@ -43,5 +43,7 @@ declare module 'foliate-js/view.js' {
     getSectionFractions(): number[];
     search(opts: { query: string }): AsyncGenerator<SearchResult | 'done'>;
     clearSearch(): void;
+    deselect(): void;
+    getCFI(index: number, range?: Range): string;
   }
 }

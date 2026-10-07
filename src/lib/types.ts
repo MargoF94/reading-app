@@ -221,6 +221,9 @@ export interface Quote extends BaseRecord {
   text: string;
   location?: string; // where it is: "p. 42", "ch. 3", "loc. 1234"
   note?: string; // the reader's own thoughts on it
+  /** Saved from the in-app reader: the EPUB and the place in it, to open the book there again. */
+  fileId?: string;
+  cfi?: string;
 }
 
 export type Repeat = 'daily' | 'weekdays' | 'weekly';

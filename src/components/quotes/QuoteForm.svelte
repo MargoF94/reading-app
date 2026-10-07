@@ -4,12 +4,27 @@
   import { newId, nowIso } from '../../lib/util';
 
   // Add (or edit) a quote from a book or fic.
-  let { item, quote = undefined, onclose }: { item: Item; quote?: Quote; onclose: () => void } = $props();
+  // `initial` pre-fills a new quote, e.g. text selected in the reader and where it is.
+  let {
+    item,
+    quote = undefined,
+    initial = undefined,
+    onclose,
+    onsaved = undefined,
+  }: {
+    item: Item;
+    quote?: Quote;
+    initial?: Pick<Quote, 'text' | 'location' | 'fileId' | 'cfi'>;
+    onclose: () => void;
+    onsaved?: (q: Quote) => void;
+  } = $props();
 
   // svelte-ignore state_referenced_locally
   const editing = quote;
-  let text = $state(editing?.text ?? '');
-  let location = $state(editing?.location ?? '');
+  // svelte-ignore state_referenced_locally
+  const start = initial;
+  let text = $state(editing?.text ?? start?.text ?? '');
+  let location = $state(editing?.location ?? start?.location ?? '');
   let note = $state(editing?.note ?? '');
   let error = $state('');
   let saving = $state(false);
@@ -32,7 +47,7 @@
     saving = true;
     try {
       const now = nowIso();
-      await library.saveQuote({
+      const record: Quote = {
         id: editing?.id ?? newId(),
         createdAt: editing?.createdAt ?? now,
         updatedAt: now,
@@ -40,7 +55,11 @@
         text: t,
         location: location.trim() || undefined,
         note: note.trim() || undefined,
-      });
+        fileId: editing?.fileId ?? start?.fileId,
+        cfi: editing?.cfi ?? start?.cfi,
+      };
+      await library.saveQuote(record);
+      onsaved?.(record);
       onclose();
     } finally {
       saving = false;
@@ -52,7 +71,7 @@
   <label class="field">
     <span>Quote</span>
     <!-- svelte-ignore a11y_autofocus -->
-    <textarea bind:value={text} rows="4" autofocus={!editing} lang={item.language} placeholder="Type or paste the passage"></textarea>
+    <textarea bind:value={text} rows="4" autofocus={!editing && !start} lang={item.language} placeholder="Type or paste the passage"></textarea>
   </label>
   <label class="field">
     <span>Where <span class="muted">(optional — page, chapter, location)</span></span>

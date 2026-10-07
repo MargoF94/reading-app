@@ -2,7 +2,7 @@
 // reader page (its parent) with messages. The frame's Content Security Policy
 // stops any scripts inside the book from running.
 import { View, type RelocateDetail, type SearchResult, type TocItem } from 'foliate-js/view.js';
-import { isJapanese, readerCss, THEME_COLORS, type FromFrame, type ReaderPrefs, type TocEntry, type ToFrame } from '../lib/reader';
+import { isJapanese, readerCss, sentenceAt, THEME_COLORS, type FromFrame, type ReaderPrefs, type TocEntry, type ToFrame } from '../lib/reader';
 
 const post = (m: FromFrame) => parent.postMessage(m, location.origin);
 
@@ -73,7 +73,10 @@ async function open(f: File, cfi: string | undefined, p: ReaderPrefs) {
   prefs = null;
   applyPrefs(wanted ?? p);
 
-  v.addEventListener('load', (e) => onLoad((e as CustomEvent<{ doc: Document }>).detail.doc));
+  v.addEventListener('load', (e) => {
+    const { doc, index } = (e as CustomEvent<{ doc: Document; index: number }>).detail;
+    onLoad(doc, index);
+  });
   v.addEventListener('relocate', (e) => onRelocate((e as CustomEvent<RelocateDetail>).detail));
   // Links to other websites open outside the reader.
   v.addEventListener('external-link', (e) => {
@@ -95,6 +98,42 @@ async function open(f: File, cfi: string | undefined, p: ReaderPrefs) {
   await v.init({ lastLocation: cfi, showTextStart: !cfi });
 }
 
+let selectionTimer: ReturnType<typeof setTimeout> | undefined;
+let hadSelection = false;
+
+/** Tells the reader page what is selected, with its place in the book and its sentence. */
+function reportSelection(doc: Document, index: number) {
+  const sel = doc.getSelection();
+  const text = sel && !sel.isCollapsed && sel.rangeCount ? sel.toString().trim() : '';
+  if (!text) {
+    if (hadSelection) post({ type: 'selection', text: '' });
+    hadSelection = false;
+    return;
+  }
+  hadSelection = true;
+  const range = sel!.getRangeAt(0);
+  let cfi: string | undefined;
+  try {
+    cfi = view?.getCFI(index, range);
+  } catch {
+    cfi = undefined;
+  }
+  // The sentence: the selection's paragraph, cut at sentence ends around it.
+  let sentence: string | undefined;
+  const node = range.startContainer;
+  const block = (node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement)?.closest(
+    'p, li, blockquote, dd, dt, td, h1, h2, h3, h4, h5, h6, div',
+  );
+  if (block) {
+    const before = doc.createRange();
+    before.setStart(block, 0);
+    before.setEnd(range.startContainer, range.startOffset);
+    const start = before.toString().length;
+    sentence = sentenceAt(block.textContent ?? '', start, start + range.toString().length);
+  }
+  post({ type: 'selection', text: text.slice(0, 5000), cfi, sentence });
+}
+
 /** Left third turns back (forward in right-to-left books), right third the other way, middle shows the controls. */
 function tapAt(x: number) {
   const third = window.innerWidth / 3;
@@ -103,11 +142,22 @@ function tapAt(x: number) {
   else post({ type: 'tap' });
 }
 
-function onLoad(doc: Document) {
+function onLoad(doc: Document, index: number) {
   doc.addEventListener('keydown', onKey);
+  doc.addEventListener('selectionchange', () => {
+    clearTimeout(selectionTimer);
+    selectionTimer = setTimeout(() => reportSelection(doc, index), 250);
+  });
   doc.addEventListener('click', (e) => {
     if (e.defaultPrevented || (e.target as Element)?.closest?.('a[href]')) return;
     if (!doc.getSelection()?.isCollapsed) return;
+    // A tap that only clears a selection doesn't also turn the page.
+    if (hadSelection) {
+      hadSelection = false;
+      clearTimeout(selectionTimer);
+      post({ type: 'selection', text: '' });
+      return;
+    }
     // Where the tap was on screen: the page's frame may be scrolled inside the renderer.
     const frame = doc.defaultView?.frameElement;
     tapAt((frame?.getBoundingClientRect().left ?? 0) + e.clientX);
@@ -187,6 +237,9 @@ addEventListener('message', (e: MessageEvent<ToFrame>) => {
       break;
     case 'search':
       void search(m.query);
+      break;
+    case 'deselect':
+      view?.deselect();
       break;
     case 'clear-search':
       searchRun++;

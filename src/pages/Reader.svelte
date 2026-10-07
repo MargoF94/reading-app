@@ -3,6 +3,9 @@
   import Icon from '../components/Icon.svelte';
   import ReaderContents from '../components/reader/ReaderContents.svelte';
   import ReaderSettings from '../components/reader/ReaderSettings.svelte';
+  import ReaderSheet from '../components/reader/ReaderSheet.svelte';
+  import QuoteForm from '../components/quotes/QuoteForm.svelte';
+  import WordForm from '../components/vocab/WordForm.svelte';
   import { getMeta, setMeta } from '../lib/db';
   import { deviceFiles } from '../lib/deviceFiles.svelte';
   import { formatBytes } from '../lib/itemFiles';
@@ -10,6 +13,8 @@
     cleanPrefs,
     DEFAULT_PREFS,
     percentOf,
+    quoteLocation,
+    selectedWord,
     THEME_COLORS,
     type FromFrame,
     type ReaderPrefs,
@@ -39,7 +44,18 @@
   let error = $state('');
   let prefs = $state<ReaderPrefs>({ ...DEFAULT_PREFS });
   let controls = $state(false);
-  let sheet = $state<null | 'settings' | 'contents'>(null);
+  let sheet = $state<null | 'settings' | 'contents' | 'quote' | 'word'>(null);
+  // Text selected in the book, to save as a quote or look up as a word.
+  let selection = $state<{ text: string; cfi?: string; sentence?: string } | null>(null);
+  const word = $derived(selection ? selectedWord(selection.text) : undefined);
+  // What the open quote or word sheet was started with (the selection may change meanwhile).
+  let picked = $state<{ text: string; cfi?: string; sentence?: string; word?: string; location: string } | null>(null);
+
+  function pick(kind: 'quote' | 'word') {
+    if (!selection) return;
+    picked = { ...selection, word, location: quoteLocation(loc.chapter, loc.fraction) };
+    sheet = kind;
+  }
   let loc = $state<{ fraction: number; chapter?: string; chapterHref?: string; page?: number; pages?: number }>({ fraction: 0 });
   let toc = $state.raw<TocEntry[]>([]);
   let bookLang = $state('');
@@ -64,14 +80,19 @@
     if (sent || !frameReady || !file) return;
     sent = true;
     phase = 'opening';
-    post({ type: 'open', file, cfi: stored?.position?.cfi, prefs: $state.snapshot(prefs) });
+    // A link from a saved quote opens the book at the quote; otherwise where reading stopped.
+    const at = router.route.query.get('at') ?? undefined;
+    post({ type: 'open', file, cfi: at ?? stored?.position?.cfi, prefs: $state.snapshot(prefs) });
   }
 
   // ---- saving where you are ----
 
+  // Opened from a saved quote: a look at that page, which doesn't move your place or progress.
+  const visiting = !!router.route.query.get('at');
+
   async function save() {
     const p = pending;
-    if (!p) return;
+    if (!p || visiting) return;
     pending = null;
     await library.saveReaderPosition(itemId, fileId, { cfi: p.cfi, fraction: p.fraction, at: nowIso() });
     await library.logReaderProgress(itemId, percentOf(p.fraction));
@@ -121,6 +142,10 @@
       case 'search-done':
         searching = false;
         break;
+      case 'selection':
+        selection = m.text ? { text: m.text, cfi: m.cfi, sentence: m.sentence } : null;
+        if (selection) controls = false;
+        break;
       case 'error':
         phase = 'error';
         error = `Couldn’t open this file: ${m.message}`;
@@ -130,6 +155,7 @@
 
   function escape() {
     if (sheet) sheet = null;
+    else if (selection) clearSelection();
     else if (controls) controls = false;
     else void close();
   }
@@ -166,6 +192,16 @@
 
   function closeSheet() {
     sheet = null;
+  }
+
+  function clearSelection() {
+    selection = null;
+    post({ type: 'deselect' });
+  }
+
+  function saved(what: string) {
+    toasts.show(what);
+    clearSelection();
   }
 
   async function close() {
@@ -259,7 +295,17 @@
     </div>
   {/if}
 
-  {#if phase === 'reading' && !controls && !sheet}
+  {#if phase === 'reading' && selection && !sheet}
+    <div class="select-bar" role="toolbar" aria-label="Selected text">
+      <button type="button" class="btn primary small" onclick={() => pick('quote')}><Icon name="quote" size={16} /> Save quote</button>
+      {#if word}
+        <button type="button" class="btn small" onclick={() => pick('word')}>
+          <Icon name="words" size={16} /> <span class="word">Add to Words</span>
+        </button>
+      {/if}
+      <button type="button" class="btn ghost icon small" aria-label="Clear selection" onclick={clearSelection}><Icon name="close" size={16} /></button>
+    </div>
+  {:else if phase === 'reading' && !controls && !sheet}
     <div class="status-line" aria-hidden="true">
       <span class="ch">{loc.chapter ?? ''}{loc.pages ? ` · ${loc.page} / ${loc.pages}` : ''}</span>
       <span>{percent}%</span>
@@ -318,6 +364,24 @@
 
   {#if sheet === 'settings'}
     <ReaderSettings {prefs} lang={bookLang} onchange={setPrefs} onclose={closeSheet} />
+  {:else if sheet === 'quote' && item && picked}
+    <ReaderSheet title="Save quote" onclose={closeSheet}>
+      <QuoteForm
+        {item}
+        initial={{ text: picked.text, location: picked.location, fileId, cfi: picked.cfi }}
+        onclose={closeSheet}
+        onsaved={() => saved('Quote saved.')}
+      />
+    </ReaderSheet>
+  {:else if sheet === 'word' && item && picked?.word}
+    <ReaderSheet title="Add to Words" onclose={closeSheet}>
+      <WordForm
+        {item}
+        initial={{ word: picked.word, note: picked.sentence, language: bookLang || undefined }}
+        onclose={closeSheet}
+        onsaved={(w) => saved(`“${w.word}” added to Words.`)}
+      />
+    </ReaderSheet>
   {:else if sheet === 'contents'}
     <ReaderContents {toc} current={loc.chapterHref} {hits} {searching} {searched} ongo={go} onsearch={search} onclose={closeSheet} />
   {/if}
@@ -379,6 +443,51 @@
     opacity: 0.6;
     pointer-events: none;
     font-variant-numeric: tabular-nums;
+  }
+
+  .select-bar {
+    position: absolute;
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: calc(env(safe-area-inset-bottom) + 0.6rem);
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+  }
+
+  .select-bar .btn {
+    flex: 0 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .select-bar .btn :global(svg) {
+    flex-shrink: 0;
+  }
+
+  .select-bar .word {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .select-bar .icon {
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  @media (min-width: 700px) {
+    .select-bar {
+      left: 50%;
+      right: auto;
+      translate: -50% 0;
+    }
   }
 
   .ch {

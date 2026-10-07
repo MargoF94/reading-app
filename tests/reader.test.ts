@@ -98,3 +98,37 @@ describe('which file to read', () => {
     expect(readableFile(item([f('a', 'a.epub', '2026-10-01'), f('b', 'b.EPUB', '2026-10-05')]))?.id).toBe('b');
   });
 });
+
+describe('selected text', async () => {
+  const { sentenceAt, selectedWord, quoteLocation } = await import('../src/lib/reader');
+  it('finds the sentence around a word', () => {
+    const t = 'It was late. The keeper counted shelves by candle light! Then he slept.';
+    const i = t.indexOf('candle');
+    expect(sentenceAt(t, i, i + 6)).toBe('The keeper counted shelves by candle light!');
+    expect(sentenceAt('Mr. Smith left', 4, 9)).toBe('Smith left');
+    const ja = '吾輩は猫である。名前はまだ無い。どこで生れたか。';
+    const j = ja.indexOf('名前');
+    expect(sentenceAt(ja, j, j + 2)).toBe('名前はまだ無い。');
+  });
+
+  it('cuts long sentences around the word', () => {
+    const long = 'word '.repeat(200) + 'target ' + 'word '.repeat(200) + '.';
+    const i = long.indexOf('target');
+    const s = sentenceAt(long, i, i + 6, 60);
+    expect(s).toContain('target');
+    expect(s.startsWith('…') && s.endsWith('…')).toBe(true);
+    expect(s.length).toBeLessThanOrEqual(62);
+  });
+
+  it('turns a selection into a word, or nothing for longer passages', () => {
+    expect(selectedWord(' “ephemeral,” ')).toBe('ephemeral');
+    expect(selectedWord('look up')).toBe('look up');
+    expect(selectedWord('this is far too many words')).toBeUndefined();
+    expect(selectedWord('猫')).toBe('猫');
+  });
+
+  it('describes where a quote is', () => {
+    expect(quoteLocation('Chapter 4', 0.531)).toBe('Chapter 4 · 53%');
+    expect(quoteLocation(undefined, 0.2)).toBe('20%');
+  });
+});

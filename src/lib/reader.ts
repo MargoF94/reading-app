@@ -126,7 +126,8 @@ export type ToFrame =
   | { type: 'fraction'; fraction: number }
   | { type: 'turn'; dir: 'left' | 'right' | 'next' | 'prev' }
   | { type: 'search'; query: string }
-  | { type: 'clear-search' };
+  | { type: 'clear-search' }
+  | { type: 'deselect' };
 
 export type FromFrame =
   | { type: 'ready' }
@@ -144,7 +145,46 @@ export type FromFrame =
   | { type: 'key'; key: string }
   | { type: 'search-hits'; hits: SearchHit[] }
   | { type: 'search-done'; total: number }
+  /** Text selected in the book (empty when the selection goes away). */
+  | { type: 'selection'; text: string; cfi?: string; sentence?: string }
   | { type: 'error'; message: string };
+
+// ---- selected text ----
+
+const SENTENCE_END = /[.!?…。！？]/;
+
+/**
+ * The sentence in `text` around characters start–end (the selection), for a word's note.
+ * Long sentences are cut to about `max` characters around the selection.
+ */
+export function sentenceAt(text: string, start: number, end: number, max = 240): string {
+  let a = start;
+  while (a > 0 && !(SENTENCE_END.test(text[a - 1]) && (/\s/.test(text[a] ?? ' ') || /[。！？]/.test(text[a - 1])))) a--;
+  let b = end;
+  while (b < text.length && !SENTENCE_END.test(text[b])) b++;
+  while (b < text.length && /[.!?…。！？”’"'」』)]/.test(text[b])) b++;
+  let out = text.slice(a, b).replace(/\s+/g, ' ').trim();
+  if (out.length > max) {
+    const mid = text.slice(start, end).replace(/\s+/g, ' ').trim();
+    const i = out.indexOf(mid);
+    const from = Math.max(0, i - Math.floor((max - mid.length) / 2));
+    out = (from > 0 ? '…' : '') + out.slice(from, from + max).trim() + (from + max < out.length ? '…' : '');
+  }
+  return out;
+}
+
+/** A selection trimmed of surrounding punctuation, as a word to look up; undefined when it's longer than a few words. */
+export function selectedWord(text: string): string | undefined {
+  const w = text.replace(/^[\p{P}\p{S}\s]+|[\p{P}\p{S}\s]+$/gu, '');
+  if (!w || /\n/.test(w)) return undefined;
+  const spaced = w.split(/\s+/).length;
+  return spaced <= 3 && w.length <= 40 ? w : undefined;
+}
+
+/** "Chapter 4 · 53%": where a quote is, for its location. */
+export function quoteLocation(chapter: string | undefined, fraction: number): string {
+  return [chapter, `${percentOf(fraction)}%`].filter(Boolean).join(' · ');
+}
 
 // ---- files and progress ----
 

@@ -4,18 +4,34 @@
   import { library } from '../../lib/store.svelte';
   import type { Item, VocabWord, WordSense } from '../../lib/types';
   import { newId, normalize, nowIso } from '../../lib/util';
+  import { onMount } from 'svelte';
   import Icon from '../Icon.svelte';
 
   // Add (or edit) a learned word: type it, look it up, then keep the dictionary's
   // meaning or write your own.
-  let { item, word = undefined, onclose }: { item: Item; word?: VocabWord; onclose: () => void } = $props();
+  // `initial` pre-fills a new word (e.g. one selected in the reader) and looks it up straight away.
+  let {
+    item,
+    word = undefined,
+    initial = undefined,
+    onclose,
+    onsaved = undefined,
+  }: {
+    item: Item;
+    word?: VocabWord;
+    initial?: { word: string; note?: string; language?: string };
+    onclose: () => void;
+    onsaved?: (w: VocabWord) => void;
+  } = $props();
 
   // svelte-ignore state_referenced_locally
   const editing = word;
-  let text = $state(editing?.word ?? '');
   // svelte-ignore state_referenced_locally
-  let lang = $state(editing?.language ?? item.language ?? 'en');
-  let note = $state(editing?.note ?? '');
+  const start = initial;
+  let text = $state(editing?.word ?? start?.word ?? '');
+  // svelte-ignore state_referenced_locally
+  let lang = $state(editing?.language ?? start?.language ?? item.language ?? 'en');
+  let note = $state(editing?.note ?? start?.note ?? '');
 
   type Status = 'idle' | 'loading' | 'found' | 'notfound' | 'error';
   let status = $state<Status>(editing && !editing.manual ? 'found' : 'idle');
@@ -126,6 +142,7 @@
         note: note.trim() || undefined,
       };
       await library.saveWord(record);
+      onsaved?.(record);
       onclose();
     } finally {
       saving = false;
@@ -139,6 +156,10 @@
   }
 
   $effect(() => () => ctrl?.abort());
+
+  onMount(() => {
+    if (start?.word) void lookup();
+  });
 </script>
 
 <form class="word-form stack" onsubmit={submit}>
@@ -146,7 +167,7 @@
     <label class="field grow">
       <span>Word</span>
       <!-- svelte-ignore a11y_autofocus -->
-      <input bind:value={text} autocomplete="off" autocapitalize="off" spellcheck="false" autofocus={!editing} lang={lang} />
+      <input bind:value={text} autocomplete="off" autocapitalize="off" spellcheck="false" autofocus={!editing && !start} lang={lang} />
     </label>
     <label class="field lang">
       <span>Language</span>
