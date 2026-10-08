@@ -26,6 +26,15 @@
   const set = <K extends keyof ReaderPrefs>(key: K, value: ReaderPrefs[K]) => onchange({ ...prefs, [key]: value });
   const num = (e: Event) => Number((e.currentTarget as HTMLInputElement).value);
 
+  /** One notch down or up, for the icons at the ends of a slider. */
+  function step(key: keyof typeof PREF_LIMITS, dir: -1 | 1) {
+    const { min, max, step: notch } = PREF_LIMITS[key];
+    const v = Math.round(prefs[key] / notch + dir) * notch;
+    set(key, Math.min(max, Math.max(min, Math.round(v * 10) / 10)));
+  }
+  const atMin = (key: keyof typeof PREF_LIMITS) => prefs[key] <= PREF_LIMITS[key].min;
+  const atMax = (key: keyof typeof PREF_LIMITS) => prefs[key] >= PREF_LIMITS[key].max;
+
   const THEMES = [
     ['white', 'White'],
     ['light', 'Ivory'],
@@ -56,37 +65,46 @@
   </div>
 
   <div class="grid">
-    <label class="slider">
-      <span class="lab">Text size <span class="val">{prefs.fontSize}%</span></span>
-      <span class="track">
-        <span class="a small-a" aria-hidden="true">A</span>
-        <input type="range" {...PREF_LIMITS.fontSize} value={prefs.fontSize} oninput={(e) => set('fontSize', num(e))} />
-        <span class="a big-a" aria-hidden="true">A</span>
-      </span>
-    </label>
+    <div class="slider">
+      <label class="lab" for="rs-size">Text size <span class="val">{prefs.fontSize}%</span></label>
+      <div class="track">
+        <button type="button" class="step a small-a" aria-label="Smaller text" disabled={atMin('fontSize')} onclick={() => step('fontSize', -1)}>A</button>
+        <input id="rs-size" type="range" {...PREF_LIMITS.fontSize} value={prefs.fontSize} oninput={(e) => set('fontSize', num(e))} />
+        <button type="button" class="step a big-a" aria-label="Bigger text" disabled={atMax('fontSize')} onclick={() => step('fontSize', 1)}>A</button>
+      </div>
+    </div>
 
-    <label class="slider">
-      <span class="lab">Line spacing <span class="val">{prefs.lineHeight.toFixed(1)}</span></span>
-      <span class="track">
-        <svg class="sp" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14M5 12h14M5 16h14" /></svg>
+    <div class="slider">
+      <label class="lab" for="rs-spacing">Line spacing <span class="val">{prefs.lineHeight.toFixed(1)}</span></label>
+      <div class="track">
+        <button type="button" class="step" aria-label="Less line spacing" disabled={atMin('lineHeight')} onclick={() => step('lineHeight', -1)}>
+          <svg class="sp" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14M5 12h14M5 16h14" /></svg>
+        </button>
         <input
+          id="rs-spacing"
           type="range"
           {...PREF_LIMITS.lineHeight}
           value={prefs.lineHeight}
           oninput={(e) => set('lineHeight', Math.round(num(e) * 10) / 10)}
         />
-        <svg class="sp" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14M5 12h14M5 19h14" /></svg>
-      </span>
-    </label>
+        <button type="button" class="step" aria-label="More line spacing" disabled={atMax('lineHeight')} onclick={() => step('lineHeight', 1)}>
+          <svg class="sp" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14M5 12h14M5 19h14" /></svg>
+        </button>
+      </div>
+    </div>
 
-    <label class="slider">
-      <span class="lab">Side margins <span class="val">{prefs.margin ? `${prefs.margin}%` : 'None'}</span></span>
-      <span class="track">
-        <svg class="sp" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4v16M21 4v16M6 8h12M6 12h12M6 16h12" /></svg>
-        <input type="range" {...PREF_LIMITS.margin} value={prefs.margin} oninput={(e) => set('margin', num(e))} />
-        <svg class="sp" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4v16M21 4v16M9 8h6M9 12h6M9 16h6" /></svg>
-      </span>
-    </label>
+    <div class="slider">
+      <label class="lab" for="rs-margin">Side margins <span class="val">{prefs.margin ? `${prefs.margin}%` : 'None'}</span></label>
+      <div class="track">
+        <button type="button" class="step" aria-label="Smaller side margins" disabled={atMin('margin')} onclick={() => step('margin', -1)}>
+          <svg class="sp" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4v16M21 4v16M6 8h12M6 12h12M6 16h12" /></svg>
+        </button>
+        <input id="rs-margin" type="range" {...PREF_LIMITS.margin} value={prefs.margin} oninput={(e) => set('margin', num(e))} />
+        <button type="button" class="step" aria-label="Bigger side margins" disabled={atMax('margin')} onclick={() => step('margin', 1)}>
+          <svg class="sp" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4v16M21 4v16M9 8h6M9 12h6M9 16h6" /></svg>
+        </button>
+      </div>
+    </div>
   </div>
 
   <div class="lab">Theme</div>
@@ -223,14 +241,10 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .slider {
-    display: block;
-  }
-
   .track {
     display: flex;
     align-items: center;
-    gap: 0.7rem;
+    gap: 0.25rem;
   }
 
   .track input {
@@ -239,10 +253,32 @@
     min-width: 0;
   }
 
+  /* The icons at both ends of a slider: a tap moves it one notch. */
+  .step {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 2.4rem;
+    height: 2.4rem;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    background: none;
+    color: var(--text);
+  }
+
+  .step:active:not(:disabled) {
+    background: var(--surface-2);
+  }
+
+  .step:disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
+
   .a {
     font-family: var(--font-serif);
-    width: 1.3rem;
-    text-align: center;
+    line-height: 1;
   }
 
   .small-a {
