@@ -23,6 +23,7 @@ class Sync {
   #changeCounter = 0;
   #running: Promise<void> | null = null;
   #again = false;
+  #holds = 0;
 
   async init(): Promise<void> {
     this.config = (await getMeta<SyncConfig>(CONFIG_KEY)) ?? null;
@@ -32,7 +33,7 @@ class Sync {
     library.onChange(() => {
       this.#changeCounter++;
       this.pending = true;
-      this.#schedule();
+      if (!this.#holds) this.#schedule();
     });
     window.addEventListener('online', () => this.run());
     window.addEventListener('offline', () => {
@@ -40,13 +41,39 @@ class Sync {
     });
     document.addEventListener('visibilitychange', () => {
       // Coming back: fetch changes from other devices. Leaving: save now rather than
-      // after the usual delay, in case the tab is about to be closed.
-      if (document.visibilityState === 'visible' || this.pending) void this.run();
+      // after the usual delay, in case the tab is about to be closed (whoever holds
+      // syncing back flushes it themselves once their own last changes are saved).
+      if (document.visibilityState === 'visible') void this.run();
+      else if (this.pending && !this.#holds) void this.run();
     });
     if (this.config) void this.run();
   }
 
-  #schedule = debounce(() => void this.run(), 3000);
+  #schedule = debounce(() => {
+    if (!this.#holds) void this.run();
+  }, 3000);
+
+  /**
+   * Holds back the automatic upload after each change (the reader uses this, so page
+   * turns aren't uploaded every few seconds). Changes are still saved on this device;
+   * they go up when the hold is released, or when the holder calls flush().
+   */
+  hold(): () => void {
+    this.#holds++;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.#holds--;
+      if (!this.#holds) void this.flush();
+    };
+  }
+
+  /** Uploads changes that haven't been synced yet, if there are any. */
+  flush(): Promise<void> {
+    if (this.#running) return this.#running; // it notices later changes and runs again
+    return this.pending ? this.run() : Promise.resolve();
+  }
 
   async configure(cfg: SyncConfig | null): Promise<void> {
     this.config = cfg;

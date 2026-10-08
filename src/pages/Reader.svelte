@@ -490,11 +490,12 @@
     html.style.overflow = 'hidden';
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     const themeColor = meta?.content;
+    // Page turns are saved on this device as you read, but only uploaded when you
+    // close the book or leave the app (each upload sends the whole library).
+    const releaseSync = sync.hold();
     const flush = () => {
-      if (document.visibilityState === 'hidden') {
-        void save();
-        void saveTime();
-      } else activity();
+      if (document.visibilityState === 'hidden') void Promise.all([save(), saveTime()]).finally(() => void sync.flush());
+      else activity();
     };
     const timer = setInterval(tick, TICK_MS);
     document.addEventListener('visibilitychange', flush);
@@ -530,8 +531,7 @@
       window.removeEventListener('pagehide', flush);
       clearInterval(timer);
       tick();
-      void saveTime();
-      void save();
+      void Promise.all([saveTime(), save()]).finally(releaseSync);
     };
   });
 
