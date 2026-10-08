@@ -1,6 +1,10 @@
 /* ---------- tokens ---------- */
 /* Somber ink/slate palette. Dark values are their own steps, not an inversion. */
 :root {
+  /* Height of the phone's status bar when the app draws under it (0 elsewhere). */
+  --sat: env(safe-area-inset-top, 0px);
+  /* Behind the status bar's white icons: the app colour, so they stay readable. */
+  --status-bar: #34495a;
   --bg: #e8e9ea;
   --surface: #f6f6f5;
   --surface-2: #e4e5e6;
@@ -43,6 +47,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
+    --status-bar: #111315;
     --bg: #111315;
     --surface: #191c1f;
     --surface-2: #22262a;
@@ -77,6 +82,7 @@
 }
 
 :root[data-theme='dark'] {
+  --status-bar: #111315;
   --bg: #111315;
   --surface: #191c1f;
   --surface-2: #22262a;

@@ -21,7 +21,7 @@
     right: 0;
     bottom: 0;
     z-index: 3;
-    max-height: calc(100% - env(safe-area-inset-top) - 2rem);
+    max-height: calc(100% - var(--sat) - 2rem);
     overflow-y: auto;
     background: var(--surface);
     color: var(--text);

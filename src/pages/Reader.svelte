@@ -736,10 +736,10 @@
     position: absolute;
     left: 0;
     right: 0;
-    top: env(safe-area-inset-top);
+    top: var(--sat);
     bottom: env(safe-area-inset-bottom);
     width: 100%;
-    height: calc(100% - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    height: calc(100% - var(--sat) - env(safe-area-inset-bottom));
     border: 0;
     background: var(--rbg);
   }
@@ -769,7 +769,7 @@
   /* Kindle-style corners: small sans text in the page's own colour. */
   .clock {
     position: absolute;
-    top: calc(env(safe-area-inset-top) + 0.75rem);
+    top: calc(var(--sat) + 0.75rem);
     left: 0;
     right: 0;
     text-align: center;
@@ -1037,7 +1037,7 @@
 
   .bar {
     top: 0;
-    padding: calc(env(safe-area-inset-top) + 0.3rem) 0.4rem 0.6rem;
+    padding: calc(var(--sat) + 0.3rem) 0.4rem 0.6rem;
     border-bottom: 1px solid var(--border);
   }
 

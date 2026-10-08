@@ -45,7 +45,8 @@
   dialog {
     padding: 0;
     border: none;
-    background: var(--surface);
+    /* Full-screen on phones: the status-bar strip stays dark behind the white time and battery. */
+    background: linear-gradient(var(--status-bar) var(--sat), var(--surface) var(--sat));
     color: var(--text);
     width: 100%;
     max-width: 100%;
@@ -60,6 +61,7 @@
 
   @media (min-width: 640px) {
     dialog {
+      background: var(--surface);
       width: min(560px, calc(100% - 2rem));
       height: auto;
       max-height: calc(100% - 4rem);
@@ -81,7 +83,14 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: 0.75rem 0.75rem 0.25rem 1.1rem;
+    /* Full-screen on phones: keep clear of the time and battery. */
+    padding: calc(0.75rem + var(--sat)) 0.75rem 0.25rem 1.1rem;
+  }
+
+  @media (min-width: 640px) {
+    header {
+      padding-top: 0.75rem;
+    }
   }
 
   h2 {

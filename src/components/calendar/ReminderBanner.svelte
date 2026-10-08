@@ -152,7 +152,7 @@
 <style>
   .banners {
     position: sticky;
-    top: 0.5rem;
+    top: calc(0.5rem + var(--sat));
     z-index: 15;
     display: flex;
     flex-direction: column;

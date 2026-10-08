@@ -136,7 +136,7 @@
     flex-direction: column;
     background: #0c0e10;
     color: #eef0f2;
-    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+    padding: var(--sat) 0 env(safe-area-inset-bottom);
   }
 
   .bar {

@@ -80,6 +80,8 @@
 
 <svelte:document onclick={revealSpoiler} onkeydown={revealSpoiler} />
 
+<div class="status-strip" aria-hidden="true"></div>
+
 <div class="shell">
   <nav class="side" aria-label="Main">
     <a class="brand" href="#/"><Icon name="book" size={22} /> Reading Log</a>
@@ -205,7 +207,19 @@
   main {
     max-width: 1120px;
     margin: 0 auto;
-    padding: 0.5rem 1rem calc(var(--nav-h) + 1.5rem + env(safe-area-inset-bottom));
+    padding: calc(0.5rem + var(--sat)) 1rem calc(var(--nav-h) + 1.5rem + env(safe-area-inset-bottom));
+  }
+
+  /* Behind the phone's time and battery (zero height unless the app draws under them). */
+  .status-strip {
+    position: fixed;
+    z-index: 30;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--sat);
+    background: var(--status-bar);
+    pointer-events: none;
   }
 
   .topbar {
@@ -288,7 +302,7 @@
       position: sticky;
       top: 0;
       height: 100dvh;
-      padding: 1.25rem 0.75rem;
+      padding: calc(1.25rem + var(--sat)) 0.75rem 1.25rem;
       border-right: 1px solid var(--border);
       background: var(--surface);
     }

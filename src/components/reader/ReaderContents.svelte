@@ -159,7 +159,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    top: calc(env(safe-area-inset-top) + 3.5rem);
+    top: calc(var(--sat) + 3.5rem);
     z-index: 3;
     display: flex;
     flex-direction: column;
