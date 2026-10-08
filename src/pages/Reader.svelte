@@ -427,6 +427,27 @@
     sheet = null;
   }
 
+  // While a menu (or a tapped quote) is open the page is covered, so a tap on it closes
+  // the menu and goes back to reading instead of turning the page. On a phone with the
+  // keyboard up, the first tap only puts the keyboard away, so nothing typed is lost.
+  let typing = false;
+  function outsideDown(e: PointerEvent) {
+    const el = document.activeElement;
+    typing =
+      e.pointerType === 'touch' &&
+      (el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && /^(text|search|url|email|number|tel)$/.test(el.type)));
+  }
+  function outsideTap() {
+    activity();
+    if (typing) {
+      (document.activeElement as HTMLElement | null)?.blur();
+      return;
+    }
+    shownQuote = null;
+    sheet = null;
+    controls = false;
+  }
+
   function clearSelection() {
     selection = null;
     post({ type: 'deselect' });
@@ -542,6 +563,10 @@
 >
   <iframe bind:this={frame} src={FRAME_URL} title={item?.title ?? 'Book'} class:hidden={phase !== 'reading'}></iframe>
 
+  {#if sheet || shownQuote}
+    <button type="button" class="scrim" tabindex="-1" aria-hidden="true" onpointerdown={outsideDown} onclick={outsideTap}></button>
+  {/if}
+
   {#if phase !== 'reading'}
     <div class="state">
       {#if phase === 'error'}
@@ -625,7 +650,13 @@
         >
           <Icon name="bookmark" size={22} />
         </button>
-        <button type="button" class="btn ghost icon aa" aria-label="Reading settings" onclick={() => (sheet = 'settings')}>Aa</button>
+        <button
+          type="button"
+          class="btn ghost icon aa"
+          aria-label="Reading settings"
+          aria-expanded={sheet === 'settings'}
+          onclick={() => (sheet = sheet === 'settings' ? null : 'settings')}>Aa</button
+        >
       {/if}
       </div>
       <div class="title">{item?.title ?? ''}</div>
@@ -746,6 +777,19 @@
 
   iframe.hidden {
     visibility: hidden;
+  }
+
+  /* Over the page while a menu is open (under the menus and the top bar), see-through so text changes show. */
+  .scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: default;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .state {
@@ -931,64 +975,7 @@
   }
 
   @media (min-width: 700px) {
-    .bm.on :global(svg) {
-    fill: currentColor;
-  }
-
-  .bm.on {
-    color: var(--accent);
-  }
-
-  .quote-pop {
-    position: absolute;
-    left: 0.9rem;
-    right: 0.9rem;
-    bottom: calc(env(safe-area-inset-bottom) + 2.6rem);
-    z-index: 2;
-    background: var(--surface);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 0.6rem 0.8rem 0.7rem;
-    box-shadow: 0 8px 24px rgb(0 0 0 / 0.2);
-    max-height: 50%;
-    overflow-y: auto;
-  }
-
-  @media (min-width: 700px) {
-    .quote-pop {
-      left: 50%;
-      right: auto;
-      width: 460px;
-      translate: -50% 0;
-    }
-  }
-
-  .qp-head {
-    justify-content: space-between;
-  }
-
-  .quote-pop blockquote {
-    margin: 0.2rem 0 0;
-    font-family: var(--font-serif);
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  }
-
-  .qp-note {
-    margin: 0.4rem 0 0;
-  }
-
-  .qp-actions {
-    gap: 0.4rem;
-    margin-top: 0.6rem;
-  }
-
-  .danger-text {
-    color: var(--danger);
-  }
-
-  .select-bar {
+    .select-bar {
       left: 50%;
       right: auto;
       translate: -50% 0;
