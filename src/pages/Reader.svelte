@@ -464,9 +464,9 @@
   }
 
   /**
-   * The colour iPhones use for the very top of the screen (status bar area). Different
-   * iOS versions take it from the theme-color tag or from the page background, so both
-   * follow the reader's theme. The tag is replaced, not edited: some versions only notice new tags.
+   * The colour browsers that tint their own bars (Safari tabs, Android) use around the
+   * page: the theme-color tag and the page background follow the reader's theme. The
+   * tag is replaced, not edited: some versions only notice new tags.
    */
   function setTopColor(color: string) {
     const old = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
@@ -535,7 +535,7 @@
     };
   });
 
-  // The phone's status bar matches the page colour.
+  // The browser's bars match the page colour.
   $effect(() => {
     setTopColor(colors.bg);
   });
