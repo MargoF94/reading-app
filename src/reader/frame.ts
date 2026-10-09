@@ -16,6 +16,8 @@ let annotations = new Set<string>(); // cfis of saved quotes, underlined
 let bookmarks: string[] = [];
 let lastRelocate: RelocateDetail | null = null;
 let annotationTapped = false;
+let moveReason = ''; // why the page last changed, from the renderer (see open())
+let shown = false; // the book has opened at its first place (so page changes now are moves)
 
 // Fonts: the bundled Literata (its CSS with absolute URLs, for the book's pages) and a
 // font file loaded on this device.
@@ -80,6 +82,7 @@ async function open(f: File, cfi: string | undefined, p: ReaderPrefs) {
   view?.close();
   view?.remove();
   file = f;
+  shown = false;
   const v = document.createElement('foliate-view') as View;
   view = v;
   document.body.append(v);
@@ -100,6 +103,14 @@ async function open(f: File, cfi: string | undefined, p: ReaderPrefs) {
     const { doc, index } = (e as CustomEvent<{ doc: Document; index: number }>).detail;
     onLoad(doc, index);
   });
+  // The renderer says why the page changed ('page', 'snap', 'scroll', 'navigation', or 'anchor'
+  // when it was laid out again); the view's own event leaves that out. A capturing listener on
+  // the renderer runs before the view's.
+  v.renderer.addEventListener(
+    'relocate',
+    (e) => (moveReason = (e as CustomEvent<{ reason?: string }>).detail?.reason ?? ''),
+    { capture: true },
+  );
   v.addEventListener('relocate', (e) => onRelocate((e as CustomEvent<RelocateDetail>).detail));
   // Saved quotes are underlined; they're drawn again whenever a chapter is laid out.
   v.addEventListener('create-overlay', () => {
@@ -132,6 +143,7 @@ async function open(f: File, cfi: string | undefined, p: ReaderPrefs) {
   });
   post({ type: 'opened', title: textOf(book.metadata?.title), language: lang || undefined, toc, rtl: book.dir === 'rtl' });
   await v.init({ lastLocation: cfi, showTextStart: !cfi });
+  if (view === v) shown = true;
 }
 
 let selectionTimer: ReturnType<typeof setTimeout> | undefined;
@@ -238,8 +250,12 @@ function onRelocate(d: RelocateDetail) {
     pageCfi = undefined;
   }
   const paged = prefs?.layout !== 'scroll' && r && r.pages > 2;
+  // Turned or jumped by the reader: not the book opening at its place, nor the same place
+  // laid out again (new text size, window size).
+  const moved = shown && moveReason !== 'anchor';
   post({
     type: 'relocate',
+    moved,
     fraction: d.fraction,
     cfi: d.cfi,
     chapter: d.tocItem?.label?.trim() || undefined,

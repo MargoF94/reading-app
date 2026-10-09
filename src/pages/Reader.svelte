@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import Icon from '../components/Icon.svelte';
   import ReaderContents from '../components/reader/ReaderContents.svelte';
   import ReaderSettings from '../components/reader/ReaderSettings.svelte';
@@ -154,6 +154,7 @@
     phase = 'opening';
     // A link from a saved quote opens the book at the quote; otherwise where reading stopped.
     const at = router.route.query.get('at') ?? undefined;
+    openedAt = stored?.position?.at;
     if (customFont) post({ type: 'font', file: customFont.blob });
     post({ type: 'open', file, cfi: at ?? stored?.position?.cfi, prefs: $state.snapshot(prefs) });
   }
@@ -167,10 +168,46 @@
     const p = pending;
     if (!p || visiting) return;
     pending = null;
-    await library.saveReaderPosition(itemId, fileId, { cfi: p.cfi, fraction: p.fraction, at: nowIso() });
+    const at = nowIso();
+    savedHere.add(at);
+    await library.saveReaderPosition(itemId, fileId, { cfi: p.cfi, fraction: p.fraction, at });
     await library.logReaderProgress(itemId, percentOf(p.fraction));
   }
   const saveSoon = debounce(() => void save(), 2500);
+
+  /** Saves here, then uploads (when uploads are held back while reading on a phone). */
+  function uploadNow() {
+    void Promise.all([save(), saveTime()]).finally(() => void sync.flush());
+  }
+  // A minute without turning a page: you may have put this device down to read on another.
+  let pauseTimer: ReturnType<typeof setTimeout> | undefined;
+  function uploadWhenPaused() {
+    clearTimeout(pauseTimer);
+    pauseTimer = setTimeout(uploadNow, 60_000);
+  }
+
+  // ---- your place on another device ----
+  // It can arrive by sync after the book opened. As on a Kindle, offer to go there
+  // (rather than keep reading here and later overwrite it).
+
+  let openedAt: string | undefined; // when the place the book opened at was saved
+  const savedHere = new Set<string>(); // when places were saved by this reader
+  let elsewhere = $state<{ cfi: string; fraction: number } | null>(null);
+  let turnsSinceOffer = 0;
+
+  $effect(() => {
+    const p = stored?.position;
+    if (phase !== 'reading' || visiting || !p || p.at === openedAt || savedHere.has(p.at)) return;
+    const here = untrack(() => loc.fraction);
+    elsewhere = Math.abs(p.fraction - here) >= 0.002 ? { cfi: p.cfi, fraction: p.fraction } : null;
+    turnsSinceOffer = 0;
+  });
+
+  function goElsewhere() {
+    if (!elsewhere) return;
+    go(elsewhere.cfi);
+    elsewhere = null;
+  }
 
   async function markStarted() {
     const it = library.item(itemId);
@@ -287,8 +324,14 @@
           location: m.location,
         };
         lastCfi = m.cfi;
-        pending = { cfi: m.cfi, fraction: m.fraction };
-        saveSoon();
+        // Only pages you turned to are saved: reopening at an old place mustn't overwrite a
+        // newer one from another device.
+        if (m.moved) {
+          pending = { cfi: m.cfi, fraction: m.fraction };
+          saveSoon();
+          uploadWhenPaused();
+          if (elsewhere && ++turnsSinceOffer >= 3) elsewhere = null;
+        }
         break;
       case 'annotation':
         shownQuote = bookQuotes.find((q) => q.cfi === m.cfi) ?? null;
@@ -490,11 +533,14 @@
     html.style.overflow = 'hidden';
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     const themeColor = meta?.content;
-    // Page turns are saved on this device as you read, but only uploaded when you
-    // close the book or leave the app (each upload sends the whole library).
-    const releaseSync = sync.hold();
+    // On a phone or tablet, page turns are saved on the device as you read but uploaded only
+    // when you close the book, leave the app or stop for a minute: each upload sends the whole
+    // library, which costs battery. Computers upload after each page, as elsewhere in the app.
+    const releaseSync = matchMedia('(pointer: coarse)').matches ? sync.hold() : () => {};
+    // Fetch the latest from other devices (a newer place is offered once it arrives).
+    void sync.run();
     const flush = () => {
-      if (document.visibilityState === 'hidden') void Promise.all([save(), saveTime()]).finally(() => void sync.flush());
+      if (document.visibilityState === 'hidden') uploadNow();
       else activity();
     };
     const timer = setInterval(tick, TICK_MS);
@@ -530,6 +576,7 @@
       document.removeEventListener('visibilitychange', flush);
       window.removeEventListener('pagehide', flush);
       clearInterval(timer);
+      clearTimeout(pauseTimer);
       tick();
       void Promise.all([saveTime(), save()]).finally(releaseSync);
     };
@@ -603,6 +650,16 @@
         <button type="button" class="btn small" onclick={() => copyQuote(shownQuote!)}><Icon name="copy" size={15} /> Copy</button>
         <button type="button" class="btn ghost small danger-text" onclick={() => removeQuote(shownQuote!)}>Remove</button>
       </div>
+    </div>
+  {/if}
+
+  {#if phase === 'reading' && elsewhere && !sheet && !controls}
+    <div class="elsewhere" role="status">
+      <span>On another device you were at <strong>{percentOf(elsewhere.fraction)}%</strong>.</span>
+      <button type="button" class="btn primary small" onclick={goElsewhere}>Go there</button>
+      <button type="button" class="btn ghost icon small" aria-label="Stay here" onclick={() => (elsewhere = null)}>
+        <Icon name="close" size={16} />
+      </button>
     </div>
   {/if}
 
@@ -952,6 +1009,38 @@
     border: 1px solid var(--border);
     border-radius: 12px;
     box-shadow: var(--shadow);
+  }
+
+  .elsewhere {
+    position: absolute;
+    left: 0.75rem;
+    right: 0.75rem;
+    top: calc(var(--sat) + 2.1rem);
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.45rem 0.45rem 0.8rem;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    font-size: 0.9rem;
+  }
+
+  .elsewhere span {
+    flex: 1;
+    min-width: 0;
+  }
+
+  @media (min-width: 700px) {
+    .elsewhere {
+      left: 50%;
+      right: auto;
+      width: 460px;
+      translate: -50% 0;
+    }
   }
 
   .select-bar .btn {

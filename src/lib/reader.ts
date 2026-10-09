@@ -158,6 +158,8 @@ export type FromFrame =
   | { type: 'opened'; title: string; language?: string; toc: TocEntry[]; rtl: boolean }
   | {
       type: 'relocate';
+      /** You turned the page or jumped (not the first page shown, nor a re-layout). */
+      moved: boolean;
       fraction: number;
       cfi: string;
       chapter?: string;
