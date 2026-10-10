@@ -1,8 +1,8 @@
 // The in-app EPUB reader: display settings, the styles they put into the book,
 // the messages exchanged with the reader frame, and how reading updates progress.
-import { activeReading } from './reading';
-import type { Item, Reading, StoredFile } from './types';
-import { newId } from './util';
+import { activeReading, entryLabel, entryPercent, latestEntry, unitTotal } from './reading';
+import type { Item, ProgressEntry, Reading, ReaderPosition, StoredFile } from './types';
+import { newId, toDateString } from './util';
 
 export type ReaderTheme = 'white' | 'light' | 'sepia' | 'dark';
 /** literata: bundled, close to Kindle's Bookerly; custom: a font file loaded on this device. */
@@ -138,8 +138,15 @@ export interface SearchHit {
   post: string;
 }
 
+/** Where to open a book that has no saved place to go back to (see LoggedPlace). */
+export interface StartPlace {
+  fraction: number;
+  chaptersRead?: number;
+  chapters?: number;
+}
+
 export type ToFrame =
-  | { type: 'open'; file: File; cfi?: string; prefs: ReaderPrefs }
+  | { type: 'open'; file: File; cfi?: string; start?: StartPlace; prefs: ReaderPrefs }
   | { type: 'prefs'; prefs: ReaderPrefs }
   | { type: 'goto'; target: string }
   | { type: 'fraction'; fraction: number }
@@ -255,4 +262,71 @@ export function readerProgress(readings: Reading[], percent: number, date: strin
     log = [...active.log, { id: newId(), date, value, unit: 'percent' }];
   }
   return { ...active, outcome: 'reading', log, updatedAt: now };
+}
+
+// ---- progress you logged yourself ----
+
+/** A place in the book from progress logged by hand (read on paper, a Kindle, AO3…). */
+export interface LoggedPlace extends StartPlace {
+  /** As logged: "58%", "p. 150 of 300", "ch. 12 of 30". */
+  label: string;
+}
+
+/** Where a progress entry puts you in the book, when the book's total for its unit is known. */
+export function entryPlace(item: Item, entry: ProgressEntry): LoggedPlace | undefined {
+  const pct = entryPercent(item, entry);
+  if (pct === undefined) return undefined;
+  const byChapter = entry.unit === 'chapters';
+  return {
+    fraction: pct / 100,
+    chaptersRead: byChapter ? entry.value : undefined,
+    chapters: byChapter ? unitTotal(item, 'chapters') : undefined,
+    label: entryLabel(item, entry),
+  };
+}
+
+/**
+ * Progress logged by hand that the reader hasn't caught up with: the latest entry of the
+ * current read-through, when it's somewhere else than the reader's place and wasn't logged
+ * before the reader last moved. As you read, the reader logs a percent matching its own
+ * place, so its own entries never count.
+ */
+export function loggedPlace(item: Item, readings: Reading[], position: ReaderPosition | undefined): LoggedPlace | undefined {
+  const entry = latestEntry(activeReading(readings));
+  const place = entry && entryPlace(item, entry);
+  if (!entry || !place) return undefined;
+  if (!position) return place.fraction > 0 || entry.unit === 'chapters' ? place : undefined;
+  if (Math.abs(place.fraction - position.fraction) < 0.01) return undefined;
+  if (entry.date < toDateString(new Date(position.at))) return undefined;
+  return place;
+}
+
+/** Front and back matter in a book's contents, as opposed to its chapters. */
+const NOT_A_CHAPTER =
+  /^\s*(preface|foreword|afterword|end ?notes|notes|contents|table of contents|title( page)?|cover|summary|dedication|copyright|acknowledg|about the author)/i;
+
+/** The chapter number in a contents label: "Chapter 13", "13. Title", "Глава 13", "第13章". */
+export function chapterNumber(label: string): number | undefined {
+  const m =
+    /^\s*(?:chapter|ch\.?|глава)\s*(\d+)/i.exec(label) ??
+    /^\s*(\d+)\s*(?:[.:)–—-]|$)/.exec(label) ??
+    /^\s*第\s*(\d+)\s*[章話话回]/.exec(label);
+  return m ? Number(m[1]) : undefined;
+}
+
+/**
+ * Where to continue a fic after `read` chapters: the contents entry for the next chapter
+ * (by its number, or else by position among the top-level entries that aren't front or
+ * back matter, when they number exactly the fic's `chapters`). 'end' when this copy of
+ * the book stops before that chapter; undefined when its contents don't say.
+ */
+export function chapterTarget(toc: TocEntry[], read: number, chapters?: number): string | 'end' | undefined {
+  const next = Math.floor(read) + 1;
+  const numbered = toc.filter((t) => chapterNumber(t.label) !== undefined);
+  const hit = numbered.find((t) => chapterNumber(t.label) === next);
+  if (hit) return hit.href;
+  if (numbered.length && numbered.every((t) => chapterNumber(t.label)! < next)) return 'end';
+  const main = toc.filter((t) => t.depth === 0 && !NOT_A_CHAPTER.test(t.label));
+  if (chapters && main.length === chapters) return next <= main.length ? main[next - 1].href : 'end';
+  return undefined;
 }

@@ -10,19 +10,24 @@
   import { deviceFiles } from '../lib/deviceFiles.svelte';
   import { formatBytes } from '../lib/itemFiles';
   import {
+    chapterTarget,
     cleanPrefs,
     DEFAULT_PREFS,
+    entryPlace,
     FOOTER_ORDER,
+    loggedPlace,
     percentOf,
     quoteLocation,
     selectedWord,
     THEME_COLORS,
     type FromFrame,
+    type LoggedPlace,
     type ReaderPrefs,
     type SearchHit,
     type TocEntry,
     type ToFrame,
   } from '../lib/reader';
+  import { activeReading, latestEntry } from '../lib/reading';
   import { router } from '../lib/router.svelte';
   import { library } from '../lib/store.svelte';
   import { sync } from '../lib/sync.svelte';
@@ -152,11 +157,20 @@
     if (sent || !frameReady || !file) return;
     sent = true;
     phase = 'opening';
-    // A link from a saved quote opens the book at the quote; otherwise where reading stopped.
+    // A link from a saved quote opens the book at the quote; otherwise where reading stopped,
+    // or where you've logged progress since (read on paper, a Kindle, AO3…).
     const at = router.route.query.get('at') ?? undefined;
-    openedAt = stored?.position?.at;
+    const old = stored?.position;
+    openedAt = old?.at;
+    seenEntry = latestKey();
+    const logged = at || !item ? undefined : loggedPlace(item, library.readings(itemId), old);
+    if (logged) {
+      openedAtLogged = logged;
+      if (old) jumpBack = { cfi: old.cfi, label: `${percentOf(old.fraction)}%` };
+    }
+    const start = logged && { fraction: logged.fraction, chaptersRead: logged.chaptersRead, chapters: logged.chapters };
     if (customFont) post({ type: 'font', file: customFont.blob });
-    post({ type: 'open', file, cfi: at ?? stored?.position?.cfi, prefs: $state.snapshot(prefs) });
+    post({ type: 'open', file, cfi: at ?? (logged ? undefined : old?.cfi), start, prefs: $state.snapshot(prefs) });
   }
 
   // ---- saving where you are ----
@@ -171,7 +185,13 @@
     const at = nowIso();
     savedHere.add(at);
     await library.saveReaderPosition(itemId, fileId, { cfi: p.cfi, fraction: p.fraction, at });
-    await library.logReaderProgress(itemId, percentOf(p.fraction));
+    logging = true;
+    try {
+      await library.logReaderProgress(itemId, percentOf(p.fraction));
+    } finally {
+      seenEntry = latestKey();
+      logging = false;
+    }
   }
   const saveSoon = debounce(() => void save(), 2500);
 
@@ -186,27 +206,67 @@
     pauseTimer = setTimeout(uploadNow, 60_000);
   }
 
-  // ---- your place on another device ----
-  // It can arrive by sync after the book opened. As on a Kindle, offer to go there
-  // (rather than keep reading here and later overwrite it).
+  // ---- your place elsewhere ----
+  // Your place on another device, or progress logged by hand there, can arrive by sync after
+  // the book opened. As on a Kindle, offer to go there (rather than keep reading here and
+  // later overwrite it).
 
   let openedAt: string | undefined; // when the place the book opened at was saved
   const savedHere = new Set<string>(); // when places were saved by this reader
-  let elsewhere = $state<{ cfi: string; fraction: number } | null>(null);
+  let openedAtLogged: LoggedPlace | undefined; // opened at progress logged by hand
+  let elsewhere = $state<{ lead: string; what: string; cfi?: string; place?: LoggedPlace } | null>(null);
   let turnsSinceOffer = 0;
 
   $effect(() => {
     const p = stored?.position;
     if (phase !== 'reading' || visiting || !p || p.at === openedAt || savedHere.has(p.at)) return;
     const here = untrack(() => loc.fraction);
-    elsewhere = Math.abs(p.fraction - here) >= 0.002 ? { cfi: p.cfi, fraction: p.fraction } : null;
+    elsewhere =
+      Math.abs(p.fraction - here) >= 0.002
+        ? { lead: 'On another device you were at', what: `${percentOf(p.fraction)}%`, cfi: p.cfi }
+        : null;
+    turnsSinceOffer = 0;
+  });
+
+  // The latest progress entry as last seen here: when the book opened, or after this reader
+  // logged its own. A different one came from elsewhere.
+  let seenEntry = '';
+  let logging = false;
+  const latestKey = () => {
+    const e = latestEntry(activeReading(library.readings(itemId)));
+    return e ? `${e.id}:${e.unit}:${e.value}` : '';
+  };
+
+  $effect(() => {
+    const key = latestKey();
+    if (phase !== 'reading' || visiting || logging || key === seenEntry || !item) return;
+    seenEntry = key;
+    const entry = untrack(() => latestEntry(activeReading(library.readings(itemId))));
+    const place = entry && entryPlace(item, entry);
+    if (!place || Math.abs(place.fraction - untrack(() => loc.fraction)) < 0.01) return;
+    // Another device's reader logs as it reads; its place, offered above, says more.
+    const theirs = untrack(() => stored?.position);
+    if (theirs && theirs.at !== openedAt && !savedHere.has(theirs.at) && Math.abs(theirs.fraction - place.fraction) < 0.01) return;
+    elsewhere = { lead: 'You logged', what: place.label, place };
     turnsSinceOffer = 0;
   });
 
   function goElsewhere() {
-    if (!elsewhere) return;
-    go(elsewhere.cfi);
+    const e = elsewhere;
+    if (!e) return;
     elsewhere = null;
+    if (e.cfi) return go(e.cfi);
+    if (e.place) goToPlace(e.place);
+  }
+
+  /** Goes to progress logged by hand: a fic's next chapter, or as far through the book. */
+  function goToPlace(place: LoggedPlace) {
+    const chapter = place.chaptersRead !== undefined ? chapterTarget(toc, place.chaptersRead, place.chapters) : undefined;
+    if (chapter && chapter !== 'end') return go(chapter);
+    rememberJump();
+    post({ type: 'fraction', fraction: chapter === 'end' ? 1 : place.fraction });
+    sheet = null;
+    controls = false;
   }
 
   async function markStarted() {
@@ -307,6 +367,8 @@
         rtl = m.rtl;
         phase = 'reading';
         void markStarted();
+        if (openedAtLogged) toasts.show(`Opened where you logged your progress (${openedAtLogged.label}).`);
+        openedAtLogged = undefined; // the book is opened again when Japanese text changes direction
         break;
       case 'relocate':
         // A jump (contents, slider, link) ends the session so it doesn't count as reading speed.
@@ -655,7 +717,7 @@
 
   {#if phase === 'reading' && elsewhere && !sheet && !controls}
     <div class="elsewhere" role="status">
-      <span>On another device you were at <strong>{percentOf(elsewhere.fraction)}%</strong>.</span>
+      <span>{elsewhere.lead} <strong>{elsewhere.what}</strong>.</span>
       <button type="button" class="btn primary small" onclick={goElsewhere}>Go there</button>
       <button type="button" class="btn ghost icon small" aria-label="Stay here" onclick={() => (elsewhere = null)}>
         <Icon name="close" size={16} />

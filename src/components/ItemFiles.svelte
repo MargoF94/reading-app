@@ -13,7 +13,7 @@
   import { ficUpdateFromDraft, type FieldChange } from '../lib/ficUpdate';
   import type { Item as ItemT } from '../lib/types';
   import { deviceFiles } from '../lib/deviceFiles.svelte';
-  import { isEpub } from '../lib/reader';
+  import { isEpub, loggedPlace } from '../lib/reader';
   import { library } from '../lib/store.svelte';
   import { sync } from '../lib/sync.svelte';
   import { toasts } from '../lib/toast.svelte';
@@ -241,7 +241,7 @@
           <div class="btns">
             {#if isEpub(f) && (sync.config || deviceFiles.has(f))}
               <a class="btn small primary" href="#/read/{item.id}/{f.id}" aria-label="Read “{f.name}”">
-                {f.position && f.position.fraction > 0 ? 'Continue' : 'Read'}
+                {(f.position && f.position.fraction > 0) || loggedPlace(item, library.readings(item.id), f.position) ? 'Continue' : 'Read'}
               </a>
             {/if}
             {#if !r}

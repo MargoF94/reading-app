@@ -35,7 +35,8 @@ declare module 'foliate-js/view.js' {
     lastLocation?: RelocateDetail;
     open(file: Blob): Promise<void>;
     close(): void;
-    init(opts: { lastLocation?: string; showTextStart?: boolean }): Promise<void>;
+    /** lastLocation: a CFI or link, a section index, or a fraction through the book. */
+    init(opts: { lastLocation?: string | number | { fraction: number }; showTextStart?: boolean }): Promise<void>;
     goTo(target: string | number): Promise<unknown>;
     goToFraction(fraction: number): Promise<void>;
     goLeft(): Promise<void>;

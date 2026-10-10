@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { cleanPrefs, DEFAULT_PREFS, percentOf, readableFile, readerCss, readerProgress } from '../src/lib/reader';
-import type { Item, Reading, StoredFile } from '../src/lib/types';
+import {
+  chapterTarget,
+  cleanPrefs,
+  DEFAULT_PREFS,
+  entryPlace,
+  loggedPlace,
+  percentOf,
+  readableFile,
+  readerCss,
+  readerProgress,
+} from '../src/lib/reader';
+import type { Item, ProgressEntry, ProgressUnit, Reading, StoredFile } from '../src/lib/types';
 
 const reading = (fields: Partial<Reading> = {}): Reading => ({
   id: 'r1',
@@ -96,6 +106,54 @@ describe('reader progress', () => {
   it('doesn’t restart finished books, and resumes ones on hold', () => {
     expect(readerProgress([reading({ outcome: 'finished', finishDate: '2026-09-01' })], 50, '2026-10-07', 'now')).toBeNull();
     expect(readerProgress([reading({ outcome: 'on-hold' })], 50, '2026-10-07', 'now')!.outcome).toBe('reading');
+  });
+});
+
+describe('progress logged by hand', () => {
+  const book = { id: 'b', type: 'book', title: 'B', book: { pageCount: 300, purchases: [] } } as unknown as Item;
+  const fic = { id: 'f', type: 'fic', title: 'F', fic: { chaptersAvailable: 30, chaptersTotal: 30 } } as unknown as Item;
+  const e = (value: number, unit: ProgressUnit, date = '2026-10-07'): ProgressEntry => ({ id: 'x', date, value, unit });
+  const logged = (...log: ProgressEntry[]) => [reading({ log })];
+  const pos = (fraction: number) => ({ cfi: 'epubcfi(/6/4)', fraction, at: '2026-10-05T12:00:00Z' });
+
+  it('places percents, pages and chapters in the book', () => {
+    expect(entryPlace(book, e(58, 'percent'))).toMatchObject({ fraction: 0.58, label: '58%' });
+    expect(entryPlace(book, e(150, 'pages'))).toMatchObject({ fraction: 0.5, label: 'p. 150 of 300' });
+    expect(entryPlace(fic, e(12, 'chapters'))).toMatchObject({ fraction: 0.4, chaptersRead: 12, chapters: 30, label: 'ch. 12 of 30' });
+    // Pages without a page count can't be placed.
+    expect(entryPlace({ ...book, book: { purchases: [] } } as unknown as Item, e(150, 'pages'))).toBeUndefined();
+  });
+
+  it('opens at progress logged since the reader last moved', () => {
+    expect(loggedPlace(book, logged(e(58, 'percent')), pos(0.34))?.fraction).toBe(0.58);
+    expect(loggedPlace(book, logged(e(150, 'pages')), pos(0.34))?.label).toBe('p. 150 of 300');
+    expect(loggedPlace(book, logged(e(58, 'percent')), undefined)?.fraction).toBe(0.58);
+    expect(loggedPlace(fic, logged(e(0, 'chapters')), undefined)?.chaptersRead).toBe(0);
+  });
+
+  it('leaves the reader’s place alone otherwise', () => {
+    // The reader's own entry matches its place.
+    expect(loggedPlace(book, logged(e(34, 'percent')), pos(0.345))).toBeUndefined();
+    // Logged before the reader last moved.
+    expect(loggedPlace(book, logged(e(58, 'percent', '2026-10-01')), pos(0.34))).toBeUndefined();
+    // No read-through in progress, or nothing past the start.
+    expect(loggedPlace(book, [reading({ outcome: 'finished', finishDate: '2026-10-07', log: [e(58, 'percent')] })], pos(0.34))).toBeUndefined();
+    expect(loggedPlace(book, logged(e(0, 'percent')), undefined)).toBeUndefined();
+  });
+
+  it('finds the next chapter in the contents', () => {
+    const toc = (...labels: string[]) => labels.map((label, i) => ({ label, href: `c${i}.xhtml`, depth: 0 }));
+    expect(chapterTarget(toc('Preface', 'Chapter 1', 'Chapter 2: The Tide', 'Chapter 3', 'Afterword'), 2)).toBe('c3.xhtml');
+    expect(chapterTarget(toc('1. Start', '2. Middle', '3. End'), 1)).toBe('c1.xhtml');
+    expect(chapterTarget(toc('Глава 1', 'Глава 2'), 1)).toBe('c1.xhtml');
+    expect(chapterTarget(toc('第1章', '第2章'), 1)).toBe('c1.xhtml');
+    // This copy of the fic stops before the next chapter.
+    expect(chapterTarget(toc('Chapter 1', 'Chapter 2'), 2)).toBe('end');
+    // Unnumbered chapters count only when they match the fic's chapters.
+    const named = toc('Preface', 'The Beginning', 'Rising', 'Falling', 'Afterword');
+    expect(chapterTarget(named, 1, 3)).toBe('c2.xhtml');
+    expect(chapterTarget(named, 3, 3)).toBe('end');
+    expect(chapterTarget(named, 1, 5)).toBeUndefined();
   });
 });
 

@@ -4,7 +4,19 @@
 import { View, type RelocateDetail, type SearchResult, type TocItem } from 'foliate-js/view.js';
 import { collapse, compare } from 'foliate-js/epubcfi.js';
 import { Overlayer } from 'foliate-js/overlayer.js';
-import { CUSTOM_FONT, isJapanese, readerCss, sentenceAt, THEME_COLORS, type FromFrame, type ReaderPrefs, type TocEntry, type ToFrame } from '../lib/reader';
+import {
+  chapterTarget,
+  CUSTOM_FONT,
+  isJapanese,
+  readerCss,
+  sentenceAt,
+  THEME_COLORS,
+  type FromFrame,
+  type ReaderPrefs,
+  type StartPlace,
+  type TocEntry,
+  type ToFrame,
+} from '../lib/reader';
 
 const post = (m: FromFrame) => parent.postMessage(m, location.origin);
 
@@ -77,7 +89,7 @@ function flatten(items: TocItem[] | undefined, depth = 0, out: TocEntry[] = []):
   return out;
 }
 
-async function open(f: File, cfi: string | undefined, p: ReaderPrefs) {
+async function open(f: File, cfi: string | undefined, p: ReaderPrefs, start?: StartPlace) {
   wanted = p;
   view?.close();
   view?.remove();
@@ -142,7 +154,13 @@ async function open(f: File, cfi: string | undefined, p: ReaderPrefs) {
     }
   });
   post({ type: 'opened', title: textOf(book.metadata?.title), language: lang || undefined, toc, rtl: book.dir === 'rtl' });
-  await v.init({ lastLocation: cfi, showTextStart: !cfi });
+  // No saved place: start where progress was logged (a fic logged by chapter, at the next one).
+  let at: string | { fraction: number } | undefined = cfi;
+  if (!at && start) {
+    const chapter = start.chaptersRead !== undefined ? chapterTarget(toc, start.chaptersRead, start.chapters) : undefined;
+    at = chapter === 'end' ? { fraction: 1 } : (chapter ?? { fraction: start.fraction });
+  }
+  await v.init({ lastLocation: at, showTextStart: !at });
   if (view === v) shown = true;
 }
 
@@ -313,7 +331,7 @@ addEventListener('message', (e: MessageEvent<ToFrame>) => {
   const m = e.data;
   switch (m.type) {
     case 'open':
-      void open(m.file, m.cfi, m.prefs);
+      void open(m.file, m.cfi, m.prefs, m.start);
       break;
     case 'prefs':
       applyPrefs(m.prefs);
