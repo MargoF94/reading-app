@@ -80,7 +80,7 @@
               style:padding-left="{0.2 + t.depth * 1}rem"
               onclick={() => ongo(t.href)}
             >
-              <span class="label">{t.label}</span>
+              <span class="entry">{t.label}</span>
               {#if t.fraction !== undefined}<span class="pct">{Math.round(t.fraction * 100)}%</span>{/if}
             </button>
           </li>
@@ -95,7 +95,7 @@
         {#each bookmarks as b (b.id)}
           <li>
             <button type="button" class="mark-row" onclick={() => ongo(b.cfi)}>
-              <span class="label">
+              <span class="entry">
                 <strong>{[b.chapter, `${percentOf(b.fraction)}%`].filter(Boolean).join(' · ')}</strong>
                 {#if b.excerpt}<span class="small muted ex">“{b.excerpt}…”</span>{/if}
               </span>
@@ -116,7 +116,7 @@
         {#each quotes as q (q.id)}
           <li>
             <button type="button" onclick={() => ongo(q.cfi!)}>
-              <span class="label">
+              <span class="entry">
                 <span class="qt">“{q.text.length > 160 ? q.text.slice(0, 160) + '…' : q.text}”</span>
                 {#if q.location}<span class="small muted">{q.location}</span>{/if}
               </span>
@@ -227,7 +227,8 @@
     flex: 1;
   }
 
-  .toc button,
+  /* Each row is one wide button (not the small remove button beside a bookmark). */
+  .toc button:where(:not(.rm)),
   .hits button {
     width: 100%;
     display: flex;
@@ -249,7 +250,7 @@
     font-weight: 700;
   }
 
-  .label {
+  .entry {
     min-width: 0;
     overflow-wrap: anywhere;
   }
@@ -266,7 +267,7 @@
     min-width: 0;
   }
 
-  .label {
+  .entry {
     display: flex;
     flex-direction: column;
     gap: 0.15rem;
@@ -289,6 +290,7 @@
   }
 
   .pct {
+    white-space: nowrap;
     font-size: 0.82rem;
     color: var(--text-2);
     font-weight: 400;
