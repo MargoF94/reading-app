@@ -9,6 +9,7 @@
   import { toasts } from '../lib/toast.svelte';
   import type { Item } from '../lib/types';
   import Cover from './Cover.svelte';
+  import CoverMaker from './CoverMaker.svelte';
   import Icon from './Icon.svelte';
   import Modal from './Modal.svelte';
 
@@ -23,6 +24,7 @@
   let fileInput: HTMLInputElement | undefined = $state();
   // An uploaded cover can also go into the EPUBs (fics' AO3 EPUBs come without one).
   let intoEpub = $state(false);
+  let making = $state(false); // making a Penguin-style cover
   const epubs = $derived((item.files ?? []).filter(isEpub).length);
 
   $effect(() => {
@@ -30,6 +32,7 @@
       untrack(() => {
         link = isRepoCover(item.coverUrl) ? '' : (item.coverUrl ?? '');
         intoEpub = item.epubCover ?? item.type === 'fic';
+        making = false;
         message = '';
         candidates = [];
         searched = false;
@@ -94,23 +97,39 @@
   }
 </script>
 
-<Modal {open} title="Change cover" {onclose}>
+{#snippet epubOption()}
+  {#if sync.config}
+    <label class="check small">
+      <input type="checkbox" bind:checked={intoEpub} />
+      <span>
+        Also make it the EPUB’s cover
+        <span class="muted">({epubs ? 'and EPUBs added later' : 'when you add an EPUB'})</span>
+      </span>
+    </label>
+  {/if}
+{/snippet}
+
+<Modal {open} title={making ? 'Make a cover' : 'Change cover'} {onclose}>
+  {#if making}
+    <CoverMaker
+      {item}
+      {busy}
+      options={epubOption}
+      onuse={(blob) => apply(undefined, blob, intoEpub && !!sync.config)}
+      oncancel={() => (making = false)}
+    />
+  {:else}
   <div class="stack">
     <div class="current">
       <Cover {item} width={110} />
       <div class="stack actions">
+        <button type="button" class="btn" disabled={busy} onclick={() => (making = true)}>
+          <Icon name="image" size={18} /> Make a Penguin cover
+        </button>
         <button type="button" class="btn" disabled={busy} onclick={() => fileInput?.click()}>
           <Icon name="upload" size={18} /> Upload a photo
         </button>
-        {#if sync.config}
-          <label class="check small">
-            <input type="checkbox" bind:checked={intoEpub} />
-            <span>
-              Also make it the EPUB’s cover
-              <span class="muted">({epubs ? 'and EPUBs added later' : 'when you add an EPUB'})</span>
-            </span>
-          </label>
-        {/if}
+        {@render epubOption()}
         {#if item.type === 'book'}
           <button type="button" class="btn" disabled={busy} onclick={findOnline}>
             <Icon name="search" size={18} /> {busy && !searched ? 'Searching…' : 'Find covers online'}
@@ -162,6 +181,7 @@
     {#if message}<p class="small error" role="alert">{message}</p>{/if}
     <input bind:this={fileInput} type="file" accept="image/*" hidden onchange={upload} />
   </div>
+  {/if}
 </Modal>
 
 <style>
