@@ -4,10 +4,17 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
 import { fileURLToPath } from 'node:url';
 
+// Shown in Settings, so you can tell which version a device has.
+const built = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+const commit = process.env.GITHUB_SHA?.slice(0, 7);
+
 // Relative base so the build works at https://<user>.github.io/reading-app/
 // (and anywhere else) without hard-coding the repo name.
 export default defineConfig({
   base: './',
+  define: {
+    __APP_VERSION__: JSON.stringify(commit ? `${built} · ${commit}` : built),
+  },
   build: {
     rollupOptions: {
       // The EPUB reader runs in its own page, locked down so scripts inside books can't run.

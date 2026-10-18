@@ -1,8 +1,8 @@
 import { mount } from 'svelte';
-import { registerSW } from 'virtual:pwa-register';
 import App from './App.svelte';
 import './app.css';
+import { startUpdates } from './lib/appUpdate';
 
-registerSW({ immediate: true });
+startUpdates();
 
 export default mount(App, { target: document.getElementById('app')! });

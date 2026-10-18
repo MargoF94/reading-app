@@ -1,5 +1,6 @@
 <script lang="ts">
   import { MUSIC_STORES, musicStore } from '../lib/appleMusic';
+  import { APP_VERSION, checkForUpdate } from '../lib/appUpdate';
   import CoverFinder from '../components/CoverFinder.svelte';
   import ReminderSettings from '../components/calendar/ReminderSettings.svelte';
   import ManageNames from '../components/ManageNames.svelte';
@@ -68,6 +69,17 @@
   }
 
   let fileInput: HTMLInputElement | undefined = $state();
+
+  // ---- the app's own version ----
+  let updateState = $state<'idle' | 'checking' | 'updating' | 'latest' | 'offline'>('idle');
+  async function checkUpdates() {
+    if (!navigator.onLine) {
+      updateState = 'offline';
+      return;
+    }
+    updateState = 'checking';
+    updateState = (await checkForUpdate(true)) ? 'updating' : 'latest';
+  }
 
   async function importJson(e: Event) {
     const file = (e.currentTarget as HTMLInputElement).files?.[0];
@@ -354,6 +366,26 @@
       To bring in your Goodreads library or add fics and books from AO3 and Goodreads pages, see
       <a href="#/import">Import</a>. Uploaded cover photos live in the data repo, not in the backup file.
     </p>
+  </section>
+
+  <section class="card stack">
+    <h2>App version</h2>
+    <p class="small muted" style="margin:0">
+      This device has the version from {APP_VERSION}. New versions download by themselves when the app opens, and the
+      app reloads into them.
+    </p>
+    <div class="row">
+      <button type="button" class="btn" disabled={updateState === 'checking' || updateState === 'updating'} onclick={checkUpdates}>
+        {updateState === 'checking' ? 'Checking…' : 'Check for updates'}
+      </button>
+      {#if updateState === 'updating'}
+        <span class="small" role="status">Downloading the new version — the app reloads in a moment.</span>
+      {:else if updateState === 'latest'}
+        <span class="small muted" role="status">You have the latest version.</span>
+      {:else if updateState === 'offline'}
+        <span class="small muted" role="status">You’re offline. Try again when connected.</span>
+      {/if}
+    </div>
   </section>
 </div>
 
