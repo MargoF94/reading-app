@@ -10,8 +10,11 @@ export function isRepoCover(url: string | undefined): url is string {
   return !!url?.startsWith(REPO_PREFIX);
 }
 
-/** Scales a photo down to at most 400×600 and re-encodes it (WebP, or JPEG where WebP isn't supported). */
-export async function resizeImage(file: Blob, maxW = 400, maxH = 600): Promise<Blob> {
+/**
+ * Scales a photo down to at most 400×600 and re-encodes it (WebP, or JPEG where WebP isn't supported).
+ * `jpeg`: always JPEG, sharper (covers that also go into EPUBs, which can't hold WebP).
+ */
+export async function resizeImage(file: Blob, maxW = 400, maxH = 600, jpeg = false): Promise<Blob> {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, maxW / bitmap.width, maxH / bitmap.height);
   const w = Math.round(bitmap.width * scale);
@@ -21,13 +24,18 @@ export async function resizeImage(file: Blob, maxW = 400, maxH = 600): Promise<B
   canvas.height = h;
   canvas.getContext('2d')!.drawImage(bitmap, 0, 0, w, h);
   bitmap.close();
-  const encode = (type: string) => new Promise<Blob | null>((r) => canvas.toBlob(r, type, 0.82));
-  const webp = await encode('image/webp');
-  if (webp && webp.type === 'image/webp') return webp;
-  const jpeg = await encode('image/jpeg');
-  if (!jpeg) throw new Error('Couldn’t process this image.');
-  return jpeg;
+  const encode = (type: string) => new Promise<Blob | null>((r) => canvas.toBlob(r, type, jpeg ? 0.9 : 0.82));
+  if (!jpeg) {
+    const webp = await encode('image/webp');
+    if (webp && webp.type === 'image/webp') return webp;
+  }
+  const out = await encode('image/jpeg');
+  if (!out) throw new Error('Couldn’t process this image.');
+  return out;
 }
+
+/** Big enough for a cover on a Kindle screen. */
+export const EPUB_COVER_SIZE = { width: 1200, height: 1920 };
 
 /** Saves a new cover for an item; returns the value for item.coverUrl. */
 export function saveCover(itemId: string, blob: Blob): Promise<string> {
@@ -74,6 +82,11 @@ export function coverSrc(coverUrl: string): Promise<string | null> {
     srcCache.set(path, p);
   }
   return p;
+}
+
+/** The picture of an uploaded cover (from this device, or downloaded from the data repo). */
+export function coverBlob(coverUrl: string | undefined): Promise<Blob | null> {
+  return isRepoCover(coverUrl) ? loadBlob(coverUrl.slice(REPO_PREFIX.length)) : Promise.resolve(null);
 }
 
 async function loadBlob(path: string): Promise<Blob | null> {

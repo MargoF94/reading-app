@@ -13,6 +13,7 @@
   import { ficUpdateFromDraft, type FieldChange } from '../lib/ficUpdate';
   import type { Item as ItemT } from '../lib/types';
   import { deviceFiles } from '../lib/deviceFiles.svelte';
+  import { needsCover, putCoverInEpubs, withItemCover } from '../lib/fileCovers';
   import { isEpub, loggedPlace } from '../lib/reader';
   import { library } from '../lib/store.svelte';
   import { sync } from '../lib/sync.svelte';
@@ -44,9 +45,11 @@
     for (const file of list) {
       uploading = [...uploading, file.name];
       try {
-        const rec = await uploadItemFile(cfg, current(), file);
+        // The fic's own cover goes into its EPUBs.
+        const covered = await withItemCover(current(), file);
+        const rec = { ...(await uploadItemFile(cfg, current(), covered.file)), cover: covered.cover };
         // Keep EPUBs on this device too, so they open in the reader right away.
-        if (isEpub(rec)) await deviceFiles.keep(rec, file).catch(() => {});
+        if (isEpub(rec)) await deviceFiles.keep(rec, covered.file).catch(() => {});
         const fresh = current();
         await library.saveItem({ ...fresh, files: [...(fresh.files ?? []), rec] });
         toasts.show(`Saved “${file.name}” to your repository.`);
@@ -138,14 +141,15 @@
     try {
       const fresh = current();
       let files = fresh.files ?? [];
+      const covered = await withItemCover(fresh, r.file);
       if (keepBoth) {
-        const rec = await uploadItemFile(cfg, fresh, r.file);
-        await deviceFiles.keep(rec, r.file).catch(() => {});
+        const rec = { ...(await uploadItemFile(cfg, fresh, covered.file)), cover: covered.cover };
+        await deviceFiles.keep(rec, covered.file).catch(() => {});
         files = [...files, rec];
       } else {
-        const rec = await replaceItemFile(cfg, fresh, r.f, r.file);
+        const rec = { ...(await replaceItemFile(cfg, fresh, r.f, covered.file)), cover: covered.cover };
         await deviceFiles.forget(r.f).catch(() => {});
-        await deviceFiles.keep(rec, r.file).catch(() => {});
+        await deviceFiles.keep(rec, covered.file).catch(() => {});
         files = files.map((x) => (x.id === r.f.id ? rec : x));
       }
       const latest = current();
@@ -156,6 +160,16 @@
       toasts.show(err instanceof Error ? err.message : String(err), 'error');
     } finally {
       replaceBusy = false;
+    }
+  }
+
+  let coverBusy = $state(false);
+  async function addCover(f: StoredFile) {
+    coverBusy = true;
+    try {
+      await putCoverInEpubs(item.id, f.id);
+    } finally {
+      coverBusy = false;
     }
   }
 
@@ -206,6 +220,11 @@
             <div class="row links">
               {#if isEpub(f) && sync.config}
                 <button type="button" class="linkish small" disabled={!navigator.onLine} onclick={() => pickNewer(f)}>Upload newer version</button>
+              {/if}
+              {#if sync.config && needsCover(item, f)}
+                <button type="button" class="linkish small" disabled={!navigator.onLine || coverBusy} onclick={() => addCover(f)}>
+                  {coverBusy ? 'Adding the cover…' : 'Add the cover to this EPUB'}
+                </button>
               {/if}
               {#if deviceFiles.has(f)}
                 <button type="button" class="linkish small" onclick={() => forgetLocal(f)}>Remove from this device</button>

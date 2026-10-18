@@ -1,8 +1,11 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { discardCover, isRepoCover, resizeImage, saveCover } from '../lib/covers';
+  import { discardCover, EPUB_COVER_SIZE, isRepoCover, resizeImage, saveCover } from '../lib/covers';
+  import { putCoverInEpubs } from '../lib/fileCovers';
   import { lookupIsbn, QuotaError, searchBooks } from '../lib/lookup';
+  import { isEpub } from '../lib/reader';
   import { library } from '../lib/store.svelte';
+  import { sync } from '../lib/sync.svelte';
   import { toasts } from '../lib/toast.svelte';
   import type { Item } from '../lib/types';
   import Cover from './Cover.svelte';
@@ -18,25 +21,31 @@
   let candidates = $state<string[]>([]);
   let searched = $state(false);
   let fileInput: HTMLInputElement | undefined = $state();
+  // An uploaded cover can also go into the EPUBs (fics' AO3 EPUBs come without one).
+  let intoEpub = $state(false);
+  const epubs = $derived((item.files ?? []).filter(isEpub).length);
 
   $effect(() => {
     if (open)
       untrack(() => {
         link = isRepoCover(item.coverUrl) ? '' : (item.coverUrl ?? '');
+        intoEpub = item.epubCover ?? item.type === 'fic';
         message = '';
         candidates = [];
         searched = false;
       });
   });
 
-  async function apply(coverUrl: string | undefined, blob?: Blob) {
+  /** `epub`: the cover also goes into the EPUBs, now and when added later. */
+  async function apply(coverUrl: string | undefined, blob?: Blob, epub = false) {
     busy = true;
     try {
       const next = blob ? await saveCover(item.id, blob) : coverUrl;
       if (isRepoCover(item.coverUrl) && item.coverUrl !== next) await discardCover(item.coverUrl);
-      await library.saveItem({ ...item, coverUrl: next });
+      await library.saveItem({ ...item, coverUrl: next, epubCover: epub || undefined });
       toasts.show(next ? 'Cover updated.' : 'Cover removed.');
       onclose();
+      if (epub) void putCoverInEpubs(item.id);
     } finally {
       busy = false;
     }
@@ -46,7 +55,10 @@
     const file = (e.currentTarget as HTMLInputElement).files?.[0];
     if (!file) return;
     try {
-      await apply(undefined, await resizeImage(file));
+      // Sharp enough for a Kindle screen when it goes into the EPUB; small otherwise.
+      const epub = intoEpub && !!sync.config;
+      const image = epub ? await resizeImage(file, EPUB_COVER_SIZE.width, EPUB_COVER_SIZE.height, true) : await resizeImage(file);
+      await apply(undefined, image, epub);
     } catch {
       message = 'Couldn’t read that image. Try a JPEG or PNG.';
     } finally {
@@ -90,6 +102,15 @@
         <button type="button" class="btn" disabled={busy} onclick={() => fileInput?.click()}>
           <Icon name="upload" size={18} /> Upload a photo
         </button>
+        {#if sync.config}
+          <label class="check small">
+            <input type="checkbox" bind:checked={intoEpub} />
+            <span>
+              Also make it the EPUB’s cover
+              <span class="muted">({epubs ? 'and EPUBs added later' : 'when you add an EPUB'})</span>
+            </span>
+          </label>
+        {/if}
         {#if item.type === 'book'}
           <button type="button" class="btn" disabled={busy} onclick={findOnline}>
             <Icon name="search" size={18} /> {busy && !searched ? 'Searching…' : 'Find covers online'}

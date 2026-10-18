@@ -102,6 +102,8 @@ export interface StoredFile {
   /** Where reading stopped in the in-app reader (EPUBs). Synced, so another device continues there. */
   position?: ReaderPosition;
   bookmarks?: ReaderBookmark[];
+  /** The item's cover (its coverUrl) that the app put into this EPUB. */
+  cover?: string;
 }
 
 export interface ReaderBookmark {
@@ -140,6 +142,8 @@ export interface Item extends BaseRecord {
   seriesNumber?: string; // string to allow "1.5", "3-4"
   description?: string;
   coverUrl?: string;
+  /** The cover (a picture uploaded or made here) also goes into the item's EPUBs, including ones added later. */
+  epubCover?: boolean;
   rating?: number; // 0.5 .. 5 in 0.5 steps
   review?: string; // Markdown
   reviewSpoiler?: boolean;
