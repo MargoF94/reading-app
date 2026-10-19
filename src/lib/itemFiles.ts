@@ -83,7 +83,8 @@ export const canShareFiles = (): boolean => {
 
 /**
  * Replaces a stored file with a newer version (e.g. an AO3 fic with new chapters).
- * The record keeps its id, place and bookmarks; only the file behind it changes.
+ * The record keeps its id, place and bookmarks; only the file behind it changes
+ * (so it hasn't been sent to the Kindle yet).
  */
 export async function replaceItemFile(cfg: SyncConfig, item: Item, old: StoredFile, file: File): Promise<StoredFile> {
   const fresh = await uploadItemFile(cfg, item, file);
@@ -92,5 +93,6 @@ export async function replaceItemFile(cfg: SyncConfig, item: Item, old: StoredFi
   } catch {
     // The old copy stays in the repository; the item no longer points to it.
   }
-  return { ...old, name: fresh.name, path: fresh.path, size: fresh.size, type: fresh.type, addedAt: fresh.addedAt };
+  const { kindleAt: _, ...kept } = old;
+  return { ...kept, name: fresh.name, path: fresh.path, size: fresh.size, type: fresh.type, addedAt: fresh.addedAt };
 }

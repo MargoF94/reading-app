@@ -2,6 +2,7 @@
   import { MUSIC_STORES, musicStore } from '../lib/appleMusic';
   import { APP_VERSION, checkForUpdate } from '../lib/appUpdate';
   import CoverFinder from '../components/CoverFinder.svelte';
+  import KindleSettings from '../components/KindleSettings.svelte';
   import ReminderSettings from '../components/calendar/ReminderSettings.svelte';
   import ManageNames from '../components/ManageNames.svelte';
   import { needsRates, withRates } from '../lib/fx';
@@ -174,6 +175,8 @@
       </details>
     {/if}
   </section>
+
+  <KindleSettings />
 
   <section class="card stack">
     <h2>Preferences</h2>

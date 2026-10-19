@@ -102,6 +102,9 @@ export function putCoverInEpubs(itemId: string, only?: string): Promise<void> {
   return next;
 }
 
+/** Resolves once any cover being put into the item's EPUBs is in (their paths may change). */
+export const coverWork = (itemId: string): Promise<void> => queue.get(itemId) ?? Promise.resolve();
+
 async function asJpeg(blob: Blob): Promise<Blob> {
   const bitmap = await createImageBitmap(blob);
   const canvas = document.createElement('canvas');

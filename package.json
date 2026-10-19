@@ -24,12 +24,14 @@
     "vitest": "^5.0.1"
   },
   "dependencies": {
+    "@noble/hashes": "^2.4.0",
     "barcode-detector": "^3.2.2",
     "dexie": "^4.4.6",
     "dompurify": "^3.4.16",
     "fflate": "^0.8.3",
     "foliate-js": "^1.0.1",
     "marked": "^18.0.14",
+    "tweetnacl": "^1.0.3",
     "zxing-wasm": "^3.1.3"
   }
 }

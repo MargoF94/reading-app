@@ -16,6 +16,10 @@ See [PLAN.md](PLAN.md) for the full plan and roadmap.
    Goodreads page, or install the one-click bookmarklets for AO3 and Goodreads.
 5. **Stats** shows totals and charts for any period, yearly goals and your Year in Books;
    **Library** links to lists, series, authors, genres, tags, fandoms and publishers.
+6. **Settings → Send to Kindle** (optional): puts a small workflow into `reading-data` that
+   emails EPUBs to your Kindle from your own email account (an app password, kept as an
+   encrypted repository secret). The token then also needs *Actions*, *Secrets* and
+   *Workflows: Read and write*. The workflow is `src/lib/sendToKindle.yml`.
 
 ## Development
 

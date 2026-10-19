@@ -14,12 +14,14 @@
   import type { Item as ItemT } from '../lib/types';
   import { deviceFiles } from '../lib/deviceFiles.svelte';
   import { needsCover, putCoverInEpubs, withItemCover } from '../lib/fileCovers';
+  import { canSendToKindle, kindle } from '../lib/kindle.svelte';
   import { isEpub, loggedPlace } from '../lib/reader';
   import { library } from '../lib/store.svelte';
+  import { router } from '../lib/router.svelte';
   import { sync } from '../lib/sync.svelte';
   import { toasts } from '../lib/toast.svelte';
   import type { Item, StoredFile } from '../lib/types';
-  import { formatDate } from '../lib/util';
+  import { formatDate, toDateString } from '../lib/util';
   import Icon from './Icon.svelte';
 
   // EPUBs (or other files) for this book or fic, kept in the private data repo.
@@ -173,6 +175,12 @@
     }
   }
 
+  function sendToKindle(f: StoredFile) {
+    if (library.settings.kindle) return void kindle.send(item.id, f.id);
+    toasts.show('Set up Send to Kindle first. It takes a few minutes, once.');
+    router.go('/settings?show=kindle');
+  }
+
   async function forgetLocal(f: StoredFile) {
     if (!confirm(`Remove “${f.name}” from this device? It stays in your repository and can be downloaded again.`)) return;
     await deviceFiles.forget(f);
@@ -211,6 +219,21 @@
               {formatBytes(f.size)} · added {formatDate(f.addedAt.slice(0, 10))}
               {#if deviceFiles.has(f)}· <span class="here">on this device</span>{/if}
             </span>
+            {#if sync.config && canSendToKindle(f)}
+              <div class="row kindle">
+                <button
+                  type="button"
+                  class="btn small"
+                  disabled={!!kindle.sending[f.id] || !navigator.onLine}
+                  onclick={() => sendToKindle(f)}
+                  aria-label="Send “{f.name}” to Kindle"
+                >
+                  <Icon name="send" size={15} />
+                  {kindle.sending[f.id] ? 'Sending…' : 'Send to Kindle'}
+                </button>
+                {#if f.kindleAt}<span class="small muted">Sent {formatDate(toDateString(new Date(f.kindleAt)))}</span>{/if}
+              </div>
+            {/if}
             {#if r}
               <div class="row actions">
                 <a class="btn small primary" href={r.url} download={f.name}><Icon name="download" size={15} /> Save</a>
@@ -370,6 +393,11 @@
   .links {
     gap: 0.9rem;
     flex-wrap: wrap;
+  }
+
+  .kindle {
+    gap: 0.6rem;
+    margin-top: 0.35rem;
   }
 
   .replace {

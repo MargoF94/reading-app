@@ -104,6 +104,8 @@ export interface StoredFile {
   bookmarks?: ReaderBookmark[];
   /** The item's cover (its coverUrl) that the app put into this EPUB. */
   cover?: string;
+  /** When this version of the file was last sent to the Kindle. */
+  kindleAt?: string;
 }
 
 export interface ReaderBookmark {
@@ -307,6 +309,19 @@ export interface Settings extends BaseRecord {
   dailyGoalMinutes?: number;
   /** Optional Google Books API key; unauthenticated requests share a small quota. */
   googleBooksKey?: string;
+  /** Sending files to a Kindle by email (set up in Settings). */
+  kindle?: KindleSettings;
+}
+
+export interface KindleSettings {
+  /** The Kindle's own email address (…@kindle.com). */
+  to: string;
+  /** The email account files are sent from; it must be on the Kindle's approved list. */
+  from: string;
+  /** That account's outgoing mail server, "host:port". */
+  server: string;
+  /** Version of the sending workflow put in the data repo. */
+  workflow: number;
 }
 
 /** Collections synced as arrays in library.json. */
