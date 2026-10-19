@@ -19,6 +19,9 @@ const L = {
   minAuthorSize: 34,
   bandSize: 23,
   bandTracking: 1, // em
+  bandMinTracking: 0.3, // em: long band words get closer together down to this, then smaller
+  bandGap: 0.066, // of the width, from the penguin's middle to the words either side
+  bandMargin: 0.04, // of the width, kept clear at the cover's edges
   textWidth: 0.84, // of the width
   orange: '#e8702a',
   bandOrange: '#ff6600',
@@ -42,6 +45,8 @@ export interface CoverDesign {
 }
 
 export const DEFAULT_SERIES = 'Penguin Classics';
+/** On a fic's cover (fics here are from AO3). */
+export const FIC_SERIES = 'Archive of Our Own';
 
 // ---- fonts ----
 
@@ -109,6 +114,36 @@ export function wrapTracked(m: Measure, text: string, max: number, tracking: num
   return lines;
 }
 
+export interface BandLayout {
+  left: string;
+  right: string;
+  size: number;
+  tracking: number;
+  /** From the penguin's middle to the inner ends of the words. */
+  gap: number;
+}
+
+/**
+ * The white band: the first word left of the penguin and the rest right of it, the same
+ * distance from it (as on Penguin's covers). Long words get closer together, then smaller,
+ * so they stay clear of the penguin and the edges. `m` measures at the band's type size.
+ */
+export function bandLayout(m: Measure, series: string): BandLayout {
+  const [left = '', ...rest] = series.toUpperCase().trim().split(/\s+/);
+  const sides = [left, rest.join(' ')];
+  const gap = COVER_W * L.bandGap;
+  const room = COVER_W / 2 - gap - COVER_W * L.bandMargin;
+  let em = L.bandTracking;
+  for (const side of sides) {
+    const n = [...side].length;
+    if (n > 1 && trackedWidth(m, side, L.bandSize * em) > room) em = (room - trackedWidth(m, side, 0)) / (L.bandSize * (n - 1));
+  }
+  em = Math.max(L.bandMinTracking, em);
+  const widest = Math.max(...sides.map((side) => trackedWidth(m, side, L.bandSize * em)));
+  const scale = widest > room ? room / widest : 1;
+  return { left: sides[0], right: sides[1], size: L.bandSize * scale, tracking: L.bandSize * em * scale, gap };
+}
+
 /** The part of the picture shown (source rectangle), keeping `focus` in the middle where it can. */
 export function pictureCrop(
   pic: { width: number; height: number },
@@ -146,8 +181,17 @@ export const pictureArea = () => ({ width: COVER_W, height: Math.round(COVER_H *
 
 // ---- drawing ----
 
-function drawTracked(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, tracking: number) {
-  let cx = x - trackedWidth(ctx, text, tracking) / 2;
+/** Spaced-out text centred on x (or starting or ending there). */
+function drawTracked(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  tracking: number,
+  align: 'center' | 'start' | 'end' = 'center',
+) {
+  const width = trackedWidth(ctx, text, tracking);
+  let cx = align === 'start' ? x : align === 'end' ? x - width : x - width / 2;
   for (const c of text) {
     ctx.fillText(c, cx, y);
     cx += ctx.measureText(c).width + tracking;
@@ -231,10 +275,11 @@ export function drawCover(canvas: HTMLCanvasElement, d: CoverDesign): void {
   ctx.fillStyle = '#000';
   ctx.font = `600 ${L.bandSize}px ${SANS}`;
   ctx.textBaseline = 'alphabetic';
-  const bandBase = area.height + bandH / 2 + (L.bandSize * 0.7) / 2;
-  const [left = '', ...rest] = d.series.toUpperCase().trim().split(/\s+/);
-  drawTracked(ctx, left, COVER_W * 0.319, bandBase, L.bandSize * L.bandTracking);
-  drawTracked(ctx, rest.join(' '), COVER_W * 0.679, bandBase, L.bandSize * L.bandTracking);
+  const band = bandLayout(ctx, d.series);
+  ctx.font = `600 ${band.size}px ${SANS}`;
+  const bandBase = area.height + bandH / 2 + (band.size * 0.7) / 2;
+  drawTracked(ctx, band.left, COVER_W / 2 - band.gap, bandBase, band.tracking, 'end');
+  drawTracked(ctx, band.right, COVER_W / 2 + band.gap, bandBase, band.tracking, 'start');
   emblem(ctx, COVER_W / 2, area.height + bandH / 2, COVER_W * 0.039, bandH * 0.68);
 
   // Black band: the title in orange spaced capitals (three lines at most, smaller if need be)…

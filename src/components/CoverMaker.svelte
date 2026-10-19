@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, type Snippet } from 'svelte';
-  import { coverJpeg, DEFAULT_SERIES, dragFocus, drawCover, loadCoverFonts, type CoverDesign } from '../lib/coverMaker';
+  import { coverJpeg, DEFAULT_SERIES, dragFocus, drawCover, FIC_SERIES, loadCoverFonts, type CoverDesign } from '../lib/coverMaker';
   import { COVER_W } from '../lib/coverMaker';
   import { library } from '../lib/store.svelte';
   import type { Item } from '../lib/types';
@@ -20,7 +20,8 @@
   let title = $state(item.title);
   // svelte-ignore state_referenced_locally
   let author = $state(library.authorNames(item));
-  let series = $state(DEFAULT_SERIES);
+  // svelte-ignore state_referenced_locally
+  let series = $state(item.type === 'fic' ? FIC_SERIES : DEFAULT_SERIES);
   let picture = $state.raw<ImageBitmap | null>(null);
   let focus = $state.raw({ x: 0.5, y: 0.5 });
   let zoom = $state(1);

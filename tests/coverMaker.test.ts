@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COVER_H, COVER_W, dragFocus, pictureArea, pictureCrop, trackedWidth, wrapTracked } from '../src/lib/coverMaker';
+import { bandLayout, COVER_H, COVER_W, dragFocus, pictureArea, pictureCrop, trackedWidth, wrapTracked } from '../src/lib/coverMaker';
 
 // Every character 10 px wide.
 const m = { measureText: (t: string) => ({ width: [...t].length * 10 }) };
@@ -18,6 +18,30 @@ describe('cover maker layout', () => {
     expect(wrapTracked(m, 'WHERE YOU GO, I GO', 150, 2)).toEqual(['WHERE YOU', 'GO, I GO']);
     // A word longer than the line keeps its own line.
     expect(wrapTracked(m, 'SUPERCALIFRAGILISTIC IS LONG', 100, 0)).toEqual(['SUPERCALIFRAGILISTIC', 'IS LONG']);
+  });
+
+  it('puts the band’s words either side of the penguin, the same distance from it', () => {
+    const classic = bandLayout(m, 'Penguin Classics');
+    expect(classic).toMatchObject({ left: 'PENGUIN', right: 'CLASSICS', size: 23, tracking: 23 });
+    expect(classic.gap).toBeCloseTo(79.2);
+    expect(bandLayout(m, 'Archive of Our Own')).toMatchObject({ left: 'ARCHIVE', right: 'OF OUR OWN', size: 23, tracking: 23 });
+  });
+
+  it('keeps long band words clear of the penguin and the edges', () => {
+    const room = COVER_W / 2 - 79.2 - COVER_W * 0.04;
+    const width = (b: ReturnType<typeof bandLayout>, side: string) =>
+      trackedWidth(m, side, 0) * (b.size / 23) + b.tracking * ([...side].length - 1);
+    // Closer letters first…
+    const longer = bandLayout(m, 'Archive of Our Own Fanworks');
+    expect(longer.size).toBe(23);
+    expect(longer.tracking).toBeLessThan(23);
+    expect(width(longer, longer.right)).toBeCloseTo(room);
+    // …then smaller ones.
+    const longest = bandLayout(m, 'Penguin Modern Classics Collection Edition Volume One');
+    expect(longest.size).toBeLessThan(23);
+    expect(longest.tracking / longest.size).toBeCloseTo(0.3);
+    expect(width(longest, longest.right)).toBeLessThanOrEqual(room + 0.001);
+    expect(width(longest, longest.left)).toBeLessThan(room);
   });
 
   it('crops the picture around its focus, filling the area', () => {
