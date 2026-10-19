@@ -3,6 +3,8 @@
 // the title in orange spaced capitals and the author in white italics. Sizes and places were
 // measured from that site's covers; the fonts are free look-alikes (Jost, EB Garamond).
 
+import { filmPixels, grainPixels, type Look } from './coverLook';
+
 export const COVER_W = 1200;
 export const COVER_H = 1836;
 
@@ -42,6 +44,8 @@ export interface CoverDesign {
   focus: { x: number; y: number };
   /** 1: the picture just fills its area. */
   zoom: number;
+  /** Film look and grain on the picture. */
+  look?: Look;
 }
 
 export const DEFAULT_SERIES = 'Penguin Classics';
@@ -181,6 +185,44 @@ export const pictureArea = () => ({ width: COVER_W, height: Math.round(COVER_H *
 
 // ---- drawing ----
 
+type Picture = NonNullable<CoverDesign['picture']>;
+
+/** The longest side the film look works on (the cover is 1200 wide; zooming in shows a part). */
+const MAX_FILM_SIDE = 2400;
+const filmCache = new WeakMap<Picture, { film: number; picture: HTMLCanvasElement }>();
+
+/** The picture with the film look; worked out again only when the picture or the amount changes. */
+function filmed(picture: Picture, film: number): Picture {
+  if (film <= 0) return picture;
+  const hit = filmCache.get(picture);
+  if (hit?.film === film) return hit.picture;
+  const scale = Math.min(1, MAX_FILM_SIDE / Math.max(picture.width, picture.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(picture.width * scale));
+  canvas.height = Math.max(1, Math.round(picture.height * scale));
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+  ctx.drawImage(picture, 0, 0, canvas.width, canvas.height);
+  const px = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  filmPixels(px, film);
+  ctx.putImageData(px, 0, 0);
+  filmCache.set(picture, { film, picture: canvas });
+  return canvas;
+}
+
+/** Darker corners, as film and old lenses give. */
+function vignette(ctx: CanvasRenderingContext2D, w: number, h: number, film: number) {
+  const r = Math.hypot(w, h) / 2;
+  const shade = Math.round(255 * (1 - 0.34 * film));
+  const g = ctx.createRadialGradient(w / 2, h / 2, r * 0.42, w / 2, h / 2, r);
+  g.addColorStop(0, '#fff');
+  g.addColorStop(1, `rgb(${shade},${shade},${shade})`);
+  ctx.save();
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+}
+
 /** Spaced-out text centred on x (or starting or ending there). */
 function drawTracked(
   ctx: CanvasRenderingContext2D,
@@ -265,8 +307,16 @@ export function drawCover(canvas: HTMLCanvasElement, d: CoverDesign): void {
   ctx.fillStyle = L.bandOrange;
   ctx.fillRect(0, 0, COVER_W, area.height);
   if (d.picture) {
-    const { sx, sy, sw, sh } = pictureCrop(d.picture, area, d.focus, d.zoom);
-    ctx.drawImage(d.picture, sx, sy, sw, sh, 0, 0, area.width, area.height);
+    const film = d.look?.film ?? 0;
+    const picture = filmed(d.picture, film);
+    const { sx, sy, sw, sh } = pictureCrop(picture, area, d.focus, d.zoom);
+    ctx.drawImage(picture, sx, sy, sw, sh, 0, 0, area.width, area.height);
+    if (film > 0) vignette(ctx, area.width, area.height, film);
+    if (d.look?.noise) {
+      const px = ctx.getImageData(0, 0, area.width, area.height);
+      grainPixels(px, d.look.noise);
+      ctx.putImageData(px, 0, 0);
+    }
   }
 
   // White band: the series name either side of the penguin.

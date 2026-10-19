@@ -25,13 +25,37 @@
   let picture = $state.raw<ImageBitmap | null>(null);
   let focus = $state.raw({ x: 0.5, y: 0.5 });
   let zoom = $state(1);
+  // Film look and grain, in percent; the last ones used are kept for the next cover.
+  const savedLook = readLook();
+  let film = $state(savedLook.film);
+  let noise = $state(savedLook.noise);
   let fontsReady = $state(false);
   let making = $state(false);
   let error = $state('');
   let canvas: HTMLCanvasElement | undefined = $state();
   let fileInput: HTMLInputElement | undefined = $state();
 
-  const design = $derived<CoverDesign>({ picture, title, author, series, focus, zoom });
+  const design = $derived<CoverDesign>({ picture, title, author, series, focus, zoom, look: { film: film / 100, noise: noise / 100 } });
+
+  function readLook(): { film: number; noise: number } {
+    try {
+      const v = JSON.parse(localStorage.getItem('cover-look') ?? '{}');
+      return { film: Number(v.film) || 0, noise: Number(v.noise) || 0 };
+    } catch {
+      return { film: 0, noise: 0 };
+    }
+  }
+
+  $effect(() => {
+    const look = JSON.stringify({ film, noise });
+    try {
+      localStorage.setItem('cover-look', look);
+    } catch {
+      /* not kept: fine */
+    }
+  });
+
+  const percent = (v: number) => (v ? `${v}%` : 'Off');
 
   onMount(() => {
     void loadCoverFonts().then(() => (fontsReady = true));
@@ -115,6 +139,16 @@
       <span>Zoom</span>
       <input type="range" min="1" max="3" step="0.01" bind:value={zoom} />
     </label>
+    <div class="grid-2 looks">
+      <label class="field zoom">
+        <span>Film <span class="muted">{percent(film)}</span></span>
+        <input type="range" min="0" max="100" step="10" bind:value={film} />
+      </label>
+      <label class="field zoom">
+        <span>Noise <span class="muted">{percent(noise)}</span></span>
+        <input type="range" min="0" max="100" step="5" bind:value={noise} />
+      </label>
+    </div>
   {/if}
   <button type="button" class="btn" class:primary={!picture} onclick={() => fileInput?.click()}>
     <Icon name="image" size={18} />
