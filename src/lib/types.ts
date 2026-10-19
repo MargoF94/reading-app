@@ -104,8 +104,14 @@ export interface StoredFile {
   bookmarks?: ReaderBookmark[];
   /** The item's cover (its coverUrl) that the app put into this EPUB. */
   cover?: string;
-  /** When this version of the file was last sent to the Kindle. */
+  /** When this version of the file went to the Kindle (or was marked as on it). */
   kindleAt?: string;
+  /** Marked as on the Kindle by hand (sent some other way). */
+  kindleByHand?: boolean;
+  /** When an older version of the file went to the Kindle (this one hasn't). */
+  kindleOlder?: string;
+  /** A send on its way: the GitHub run sending it, so any device can find out how it ended. */
+  kindleSend?: { run: number; path: string };
 }
 
 export interface ReaderBookmark {

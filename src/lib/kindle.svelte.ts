@@ -21,8 +21,8 @@ import WORKFLOW from './sendToKindle.yml?raw';
 import { library } from './store.svelte';
 import { sync } from './sync.svelte';
 import { toasts } from './toast.svelte';
-import type { KindleSettings, StoredFile } from './types';
-import { nowIso } from './util';
+import type { Item, KindleSettings, StoredFile } from './types';
+import { formatDate, nowIso, toDateString } from './util';
 
 export const KINDLE_WORKFLOW = 'send-to-kindle.yml';
 const WORKFLOW_PATH = `.github/workflows/${KINDLE_WORKFLOW}`;
@@ -109,15 +109,68 @@ export async function turnOffKindle(cfg: SyncConfig | null): Promise<void> {
   await library.saveSettings({ kindle: undefined });
 }
 
+/** Where an item's files stand with the Kindle. */
+export interface KindleStatus {
+  /** One of them is on its way now. */
+  sending: boolean;
+  /** The newest one that isn't on the Kindle: the one to send next. */
+  next?: StoredFile;
+  /** When the latest of those on the Kindle went there (not known for ones marked by hand). */
+  at?: string;
+  /** When an older version of `next` went to the Kindle. */
+  older?: string;
+}
+
+/** Undefined when none of the item's files can go to a Kindle. `sendingNow`: sends started on this device. */
+export function kindleStatus(item: Item, sendingNow: Record<string, true> = {}): KindleStatus | undefined {
+  const files = (item.files ?? []).filter(canSendToKindle);
+  if (!files.length) return undefined;
+  const next = files.filter((f) => !f.kindleAt).sort((a, b) => b.addedAt.localeCompare(a.addedAt))[0];
+  const sent = files.filter((f) => f.kindleAt && !f.kindleByHand).map((f) => f.kindleAt!);
+  return {
+    sending: files.some((f) => !!f.kindleSend || !!sendingNow[f.id]),
+    next,
+    at: sent.sort().at(-1),
+    older: next?.kindleOlder,
+  };
+}
+
+/** "Oct 19, 2026" for a time something went to the Kindle. */
+export const sentDate = (iso: string): string => formatDate(toDateString(new Date(iso)));
+
+/** The Send to Kindle button: sends, once it's set up, and after asking when the file is there already. */
+export function sendToKindle(item: Item, file: StoredFile): void {
+  if (!library.settings.kindle) {
+    toasts.show('Set up Send to Kindle first. It takes a few minutes, once.');
+    location.hash = '/settings?show=kindle';
+    return;
+  }
+  if (file.kindleAt) {
+    const when = file.kindleByHand ? 'you marked it as there' : `sent ${sentDate(file.kindleAt)}`;
+    if (!confirm(`“${item.title}” is already on your Kindle (${when}). Send it again?`)) return;
+  }
+  void kindle.send(item.id, file.id);
+}
+
+/** Marks a file as on the Kindle, or not, by hand (for files sent some other way). */
+export function setOnKindle(itemId: string, fileId: string, on: boolean): Promise<void> {
+  return updateFile(itemId, fileId, () =>
+    on ? { kindleAt: nowIso(), kindleByHand: true, kindleOlder: undefined } : { kindleAt: undefined, kindleByHand: undefined },
+  );
+}
+
+/** A run that ended without sending the file. */
+class SendFailed extends Error {}
+
 class KindleSender {
-  /** Files on their way, by id. */
+  /** Files this device is sending or checking on, by id. */
   sending = $state<Record<string, true>>({});
 
   /** Sends one of the item's files to the Kindle, and says how it went. */
   async send(itemId: string, fileId: string): Promise<void> {
     const cfg = sync.config;
     if (!cfg || this.sending[fileId]) return;
-    this.sending = { ...this.sending, [fileId]: true };
+    this.#busy(fileId, true);
     try {
       await coverWork(itemId); // a cover going into the EPUB gets there first
       const item = library.item(itemId);
@@ -129,25 +182,69 @@ class KindleSender {
         await library.saveSettings({ kindle: { ...settings, workflow: WORKFLOW_VERSION } });
       }
       const { defaultBranch } = await checkRepo(cfg);
-      const id = await start(cfg, defaultBranch, workflowInputs(file, settings));
+      const run = await start(cfg, defaultBranch, workflowInputs(file, settings));
       toasts.show(`Sending “${item.title}” to your Kindle…`);
-      if (id === undefined) return; // GitHub didn't say which run is sending it
-      const run = await finished(cfg, id);
-      if (!run) {
-        toasts.show(`Still sending “${item.title}”. Look for it on your Kindle in a few minutes.`, 'info', 6000);
-      } else if (run.conclusion === 'success') {
-        await markSent(itemId, file);
-        toasts.show(`Sent “${item.title}” to your Kindle. It shows up there in a few minutes.`, 'info', 6000);
-      } else {
-        const step = run.conclusion === 'failure' ? await failedStep(cfg, id) : undefined;
-        throw new Error(STEP_ERRORS[step ?? ''] ?? FAILED);
-      }
+      if (run === undefined) return; // GitHub didn't say which run is sending it
+      // Kept with the file, so how it ends is found out even if the app is closed meanwhile.
+      const pending = { run, path: file.path };
+      await updateFile(itemId, fileId, () => ({ kindleSend: pending }));
+      await this.#follow(cfg, itemId, fileId, pending);
     } catch (err) {
       toasts.show(err instanceof Error ? err.message : String(err), 'error', 8000);
     } finally {
-      const { [fileId]: _, ...rest } = this.sending;
-      this.sending = rest;
+      this.#busy(fileId, false);
     }
+  }
+
+  /** Finds out how sends still on their way ended (started before the app was closed, or on another device). */
+  resume(): void {
+    const cfg = sync.config;
+    if (!cfg || !navigator.onLine) return;
+    for (const item of library.items) {
+      for (const f of item.files ?? []) {
+        const pending = f.kindleSend;
+        if (!pending || this.sending[f.id]) continue;
+        this.#busy(f.id, true);
+        this.#follow(cfg, item.id, f.id, pending)
+          .catch(async (err) => {
+            if (err instanceof SendFailed) toasts.show(err.message, 'error', 8000);
+            // GitHub has no such run (any more): nothing to wait for.
+            else if (err instanceof GitHubError && err.status === 404) await updateFile(item.id, f.id, () => ({ kindleSend: undefined }));
+          })
+          .finally(() => this.#busy(f.id, false));
+      }
+    }
+  }
+
+  /** Waits for the run to end, then keeps the outcome with the file. */
+  async #follow(cfg: SyncConfig, itemId: string, fileId: string, pending: { run: number; path: string }): Promise<void> {
+    const title = () => library.item(itemId)?.title ?? 'the file';
+    const run = await finished(cfg, pending.run);
+    if (!run) {
+      toasts.show(`Still sending “${title()}”. Look for it on your Kindle in a few minutes.`, 'info', 6000);
+      return; // checked again next time the app opens
+    }
+    const sent = run.conclusion === 'success';
+    await updateFile(itemId, fileId, (f) =>
+      f.kindleSend?.run !== pending.run
+        ? {}
+        : {
+            kindleSend: undefined,
+            // Only if it's still the same file (not replaced by a newer version meanwhile).
+            ...(sent && f.path === pending.path ? { kindleAt: nowIso(), kindleByHand: undefined, kindleOlder: undefined } : {}),
+          },
+    );
+    if (sent) {
+      toasts.show(`Sent “${title()}” to your Kindle. It shows up there in a few minutes.`, 'info', 6000);
+      return;
+    }
+    const step = run.conclusion === 'failure' ? await failedStep(cfg, pending.run) : undefined;
+    throw new SendFailed(`“${title()}” wasn’t sent. ${STEP_ERRORS[step ?? ''] ?? FAILED}`);
+  }
+
+  #busy(fileId: string, on: boolean) {
+    const { [fileId]: _, ...rest } = this.sending;
+    this.sending = on ? { ...rest, [fileId]: true } : rest;
   }
 }
 
@@ -182,13 +279,16 @@ async function finished(cfg: SyncConfig, id: number): Promise<WorkflowRun | unde
   return undefined;
 }
 
-async function markSent(itemId: string, sent: StoredFile): Promise<void> {
+/** Changes one of an item's files (and saves it, when anything changed). */
+async function updateFile(itemId: string, fileId: string, patch: (f: StoredFile) => Partial<StoredFile>): Promise<void> {
   const item = library.item(itemId);
-  if (!item) return;
-  const at = nowIso();
-  // Only if it's still the same file (not replaced by a newer version meanwhile).
-  const files = (item.files ?? []).map((f) => (f.id === sent.id && f.path === sent.path ? { ...f, kindleAt: at } : f));
-  await library.saveItem({ ...item, files });
+  const file = item?.files?.find((f) => f.id === fileId);
+  if (!item || !file) return;
+  const changes = Object.entries(patch(file)).filter(([k, v]) => file[k as keyof StoredFile] !== v);
+  if (!changes.length) return;
+  const next = { ...file, ...Object.fromEntries(changes) } as StoredFile;
+  for (const [k, v] of changes) if (v === undefined) delete next[k as keyof StoredFile];
+  await library.saveItem({ ...item, files: item.files!.map((f) => (f.id === fileId ? next : f)) });
 }
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));

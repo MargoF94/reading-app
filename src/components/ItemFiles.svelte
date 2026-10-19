@@ -14,14 +14,13 @@
   import type { Item as ItemT } from '../lib/types';
   import { deviceFiles } from '../lib/deviceFiles.svelte';
   import { needsCover, putCoverInEpubs, withItemCover } from '../lib/fileCovers';
-  import { canSendToKindle, kindle } from '../lib/kindle.svelte';
+  import { canSendToKindle, kindle, sendToKindle, sentDate, setOnKindle } from '../lib/kindle.svelte';
   import { isEpub, loggedPlace } from '../lib/reader';
   import { library } from '../lib/store.svelte';
-  import { router } from '../lib/router.svelte';
   import { sync } from '../lib/sync.svelte';
   import { toasts } from '../lib/toast.svelte';
   import type { Item, StoredFile } from '../lib/types';
-  import { formatDate, toDateString } from '../lib/util';
+  import { formatDate } from '../lib/util';
   import Icon from './Icon.svelte';
 
   // EPUBs (or other files) for this book or fic, kept in the private data repo.
@@ -175,12 +174,6 @@
     }
   }
 
-  function sendToKindle(f: StoredFile) {
-    if (library.settings.kindle) return void kindle.send(item.id, f.id);
-    toasts.show('Set up Send to Kindle first. It takes a few minutes, once.');
-    router.go('/settings?show=kindle');
-  }
-
   async function forgetLocal(f: StoredFile) {
     if (!confirm(`Remove “${f.name}” from this device? It stays in your repository and can be downloaded again.`)) return;
     await deviceFiles.forget(f);
@@ -219,20 +212,34 @@
               {formatBytes(f.size)} · added {formatDate(f.addedAt.slice(0, 10))}
               {#if deviceFiles.has(f)}· <span class="here">on this device</span>{/if}
             </span>
-            {#if sync.config && canSendToKindle(f)}
+            {#if canSendToKindle(f)}
+              {@const sending = !!kindle.sending[f.id] || !!f.kindleSend}
               <div class="row kindle">
-                <button
-                  type="button"
-                  class="btn small"
-                  disabled={!!kindle.sending[f.id] || !navigator.onLine}
-                  onclick={() => sendToKindle(f)}
-                  aria-label="Send “{f.name}” to Kindle"
-                >
-                  <Icon name="send" size={15} />
-                  {kindle.sending[f.id] ? 'Sending…' : 'Send to Kindle'}
-                </button>
-                {#if f.kindleAt}<span class="small muted">Sent {formatDate(toDateString(new Date(f.kindleAt)))}</span>{/if}
+                {#if sync.config}
+                  <button
+                    type="button"
+                    class="btn small"
+                    disabled={sending || !navigator.onLine}
+                    onclick={() => sendToKindle(item, f)}
+                    aria-label="Send “{f.name}” to Kindle"
+                  >
+                    <Icon name="send" size={15} />
+                    {sending ? 'Sending…' : 'Send to Kindle'}
+                  </button>
+                {/if}
+                <label class="check small">
+                  <input
+                    type="checkbox"
+                    checked={!!f.kindleAt}
+                    disabled={sending}
+                    onchange={(e) => setOnKindle(item.id, f.id, e.currentTarget.checked)}
+                  />
+                  <span>On my Kindle{f.kindleAt && !f.kindleByHand ? ` · sent ${sentDate(f.kindleAt)}` : ''}</span>
+                </label>
               </div>
+              {#if !f.kindleAt && f.kindleOlder}
+                <span class="small muted">An older version went to your Kindle on {sentDate(f.kindleOlder)}.</span>
+              {/if}
             {/if}
             {#if r}
               <div class="row actions">
@@ -396,8 +403,16 @@
   }
 
   .kindle {
-    gap: 0.6rem;
+    gap: 0.4rem 0.8rem;
     margin-top: 0.35rem;
+  }
+
+  .kindle .check {
+    align-items: center;
+  }
+
+  .kindle .check input {
+    margin-top: 0;
   }
 
   .replace {

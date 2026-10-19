@@ -5,6 +5,7 @@
   import { router } from './lib/router.svelte';
   import { library } from './lib/store.svelte';
   import { sync } from './lib/sync.svelte';
+  import { kindle } from './lib/kindle.svelte';
   import { toasts } from './lib/toast.svelte';
   import BrowseDetail from './pages/BrowseDetail.svelte';
   import BrowseIndex from './pages/BrowseIndex.svelte';
@@ -37,9 +38,17 @@
       await library.load();
       await timer.load();
       await sync.init();
+      kindle.resume();
     } catch (e) {
       loadError = e instanceof Error ? e.message : String(e);
     }
+  });
+
+  // Sends to the Kindle still on their way when the app was closed (or started on another device).
+  onMount(() => {
+    const check = () => document.visibilityState === 'visible' && library.loaded && kindle.resume();
+    document.addEventListener('visibilitychange', check);
+    return () => document.removeEventListener('visibilitychange', check);
   });
 
   // Theme: "system" follows the device; otherwise force light/dark.

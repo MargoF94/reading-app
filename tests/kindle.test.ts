@@ -4,17 +4,19 @@ import { readFileSync } from 'node:fs';
 import nacl from 'tweetnacl';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { dispatchWorkflow, failedStep, putSecret, putTextFile, workflowRun } from '../src/lib/github';
+import { replaceItemFile } from '../src/lib/itemFiles';
 import {
   canSendToKindle,
   cleanPassword,
   isEmail,
+  kindleStatus,
   mailServer,
   STEP_ERRORS,
   WORKFLOW_VERSION,
   workflowInputs,
 } from '../src/lib/kindle.svelte';
 import { sealedBox, sealSecret } from '../src/lib/sealedBox';
-import type { KindleSettings, StoredFile } from '../src/lib/types';
+import type { Item, KindleSettings, StoredFile } from '../src/lib/types';
 
 const cfg = { owner: 'me', repo: 'reading-data', token: 't' };
 const workflow = readFileSync(new URL('../src/lib/sendToKindle.yml', import.meta.url), 'utf8');
@@ -176,5 +178,52 @@ describe('GitHub calls for the workflow', () => {
 
     github(() => new Response(null, { status: 204 }));
     expect(await dispatchWorkflow(cfg, 'send-to-kindle.yml', 'main', {}, {})).toBeUndefined();
+  });
+});
+
+describe('whether files are on the Kindle', () => {
+  const file = (id: string, day: number, extra: Partial<StoredFile> = {}): StoredFile => ({
+    id,
+    name: `${id}.epub`,
+    path: `files/i1/${id}.epub`,
+    size: 1,
+    addedAt: `2026-10-${String(day).padStart(2, '0')}T00:00:00Z`,
+    ...extra,
+  });
+  const item = (...files: StoredFile[]) => ({ id: 'i1', title: 'Open Season', files }) as Item;
+
+  it('says which file to send, and when files went there', () => {
+    expect(kindleStatus(item())).toBeUndefined();
+    expect(kindleStatus(item({ ...file('a', 1), name: 'manga.cbz' }))).toBeUndefined();
+    expect(kindleStatus(item(file('a', 1)))).toEqual({ sending: false, next: file('a', 1), at: undefined, older: undefined });
+    const sent = file('a', 1, { kindleAt: '2026-10-05T10:00:00Z' });
+    expect(kindleStatus(item(sent))).toEqual({ sending: false, next: undefined, at: '2026-10-05T10:00:00Z', older: undefined });
+    // Marked by hand: on the Kindle, but when isn't known.
+    expect(kindleStatus(item(file('a', 1, { kindleAt: '2026-10-05T10:00:00Z', kindleByHand: true })))?.at).toBeUndefined();
+    // The newest file not there yet is the one to send.
+    expect(kindleStatus(item(sent, file('b', 3), file('c', 2)))?.next?.id).toBe('b');
+  });
+
+  it('knows a newer version isn’t there yet, and what’s on its way', () => {
+    const newer = file('a', 9, { kindleOlder: '2026-10-05T10:00:00Z' });
+    expect(kindleStatus(item(newer))).toMatchObject({ next: newer, older: '2026-10-05T10:00:00Z' });
+    expect(kindleStatus(item(file('a', 1, { kindleSend: { run: 7, path: 'files/i1/a.epub' } })))?.sending).toBe(true);
+    expect(kindleStatus(item(file('a', 1)), { a: true })?.sending).toBe(true);
+  });
+
+  it('a newer version of a file starts out not on the Kindle, remembering the older one was', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+      if (init.method === 'PUT') return new Response('{}', { status: 201 });
+      if (init.method === 'DELETE') return new Response('{}');
+      return Response.json({ sha: 'abc' });
+    }));
+    const old = file('a', 1, { kindleAt: '2026-10-05T10:00:00Z', kindleByHand: true, position: { cfi: 'x', fraction: 0.4, at: 't' } });
+    const fresh = await replaceItemFile(cfg, item(old), old, new File(['new'], 'a.epub'));
+    expect(fresh).toMatchObject({ id: 'a', kindleOlder: '2026-10-05T10:00:00Z', position: { fraction: 0.4 } });
+    expect(fresh.kindleAt).toBeUndefined();
+    expect(fresh.kindleByHand).toBeUndefined();
+    expect(fresh.path).not.toBe(old.path);
+    // Never sent: nothing to remember.
+    expect((await replaceItemFile(cfg, item(file('b', 1)), file('b', 1), new File(['n'], 'b.epub'))).kindleOlder).toBeUndefined();
   });
 });

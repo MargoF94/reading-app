@@ -9,6 +9,7 @@
   import ItemSchedule from '../components/calendar/ItemSchedule.svelte';
   import ItemFiles from '../components/ItemFiles.svelte';
   import ReadButton from '../components/reader/ReadButton.svelte';
+  import KindleStatus from '../components/KindleStatus.svelte';
   import ItemTime from '../components/ItemTime.svelte';
   import ItemImages from '../components/images/ItemImages.svelte';
   import ItemCharacters from '../components/characters/ItemCharacters.svelte';
@@ -161,6 +162,7 @@
         <span class="cover-hint"><Icon name="edit" size={14} /> Change cover</span>
       </button>
       <ReadButton {item} />
+      <KindleStatus {item} />
     </div>
     <div class="main-col">
       <h1>{item.title}</h1>

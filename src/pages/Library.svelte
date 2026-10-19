@@ -3,6 +3,7 @@
   import Icon from '../components/Icon.svelte';
   import ItemCard from '../components/ItemCard.svelte';
   import { FORMATS, LANGUAGE_NAME, STATUSES } from '../lib/constants';
+  import { kindleStatus } from '../lib/kindle.svelte';
   import { lastFinishDate } from '../lib/reading';
   import { router } from '../lib/router.svelte';
   import { library } from '../lib/store.svelte';
@@ -18,6 +19,7 @@
   const lang = $derived(q.get('lang') ?? '');
   const sort = $derived(q.get('sort') ?? 'added');
   const wip = $derived(q.get('wip') === '1');
+  const onKindle = $derived(q.get('kindle') ?? ''); // 'on' or 'not'
 
   let view = $state<'grid' | 'list'>(readView());
   let showFilters = $state(false);
@@ -78,6 +80,10 @@
       if (format && i.book?.format !== format) return false;
       if (lang && i.language !== lang) return false;
       if (wip && !(i.fic && !i.fic.complete)) return false;
+      if (onKindle) {
+        const k = kindleStatus(i);
+        if (!k || (onKindle === 'on') !== (k.sending || !k.next)) return false;
+      }
       if (needle && !haystack(i).includes(needle)) return false;
       return true;
     });
@@ -108,7 +114,9 @@
     return c;
   });
 
-  const activeFilters = $derived([type, status, format, lang, wip].filter(Boolean).length);
+  const activeFilters = $derived([type, status, format, lang, wip, onKindle].filter(Boolean).length);
+  // Only for libraries with files that can go to a Kindle.
+  const hasKindleFiles = $derived(library.items.some((i) => kindleStatus(i)));
 </script>
 
 <div class="row head">
@@ -204,6 +212,16 @@
         <option value="rating">My rating</option>
       </select>
     </label>
+    {#if hasKindleFiles || onKindle}
+      <label class="field">
+        <span>Kindle</span>
+        <select value={onKindle} onchange={(e) => router.setQuery({ kindle: e.currentTarget.value || undefined })}>
+          <option value="">Any</option>
+          <option value="on">On my Kindle</option>
+          <option value="not">Not on my Kindle yet</option>
+        </select>
+      </label>
+    {/if}
     <label class="check wip-filter">
       <input type="checkbox" checked={wip} onchange={(e) => router.setQuery({ wip: e.currentTarget.checked ? '1' : undefined })} />
       Unfinished fics (WIP)
@@ -212,7 +230,8 @@
       <button
         type="button"
         class="btn small ghost"
-        onclick={() => router.setQuery({ type: undefined, status: undefined, format: undefined, lang: undefined, wip: undefined })}
+        onclick={() =>
+          router.setQuery({ type: undefined, status: undefined, format: undefined, lang: undefined, wip: undefined, kindle: undefined })}
       >
         Clear filters
       </button>
