@@ -69,6 +69,19 @@ export const THEME_COLORS: Record<ReaderTheme, { bg: string; fg: string; link: s
   dark: { bg: '#16191c', fg: '#c9cdd1', link: '#9fb6c9', dark: true },
 };
 
+export interface MarkStyle {
+  fill: string;
+  opacity: number;
+  blend: string;
+}
+
+/** Highlights on the page: saved quotes light grey, saved words mint green (lighter on a dark page). */
+export function markStyle(kind: 'quote' | 'word', theme: ReaderTheme): MarkStyle {
+  const dark = THEME_COLORS[theme].dark;
+  if (kind === 'quote') return dark ? { fill: '#ffffff', opacity: 0.17, blend: 'normal' } : { fill: '#80858b', opacity: 0.32, blend: 'multiply' };
+  return dark ? { fill: '#5fd3a4', opacity: 0.3, blend: 'normal' } : { fill: '#9fe2bf', opacity: 0.75, blend: 'multiply' };
+}
+
 const FONTS: Record<'serif' | 'sans', { latin: string; ja: string }> = {
   serif: {
     latin: "'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Hiragino Mincho ProN', 'Yu Mincho', serif",
@@ -156,8 +169,10 @@ export type ToFrame =
   | { type: 'deselect' }
   /** A font file loaded on this device (null = none). */
   | { type: 'font'; file: Blob | null }
-  /** Saved quotes in this book, underlined on the page. */
+  /** Saved quotes in this book, highlighted light grey on the page. */
   | { type: 'annotations'; cfis: string[] }
+  /** Saved words from this book, highlighted mint green wherever they appear. */
+  | { type: 'words'; words: string[] }
   | { type: 'bookmarks'; cfis: string[] };
 
 export type FromFrame =
@@ -181,8 +196,10 @@ export type FromFrame =
       /** Location numbers through the whole book (like a Kindle's). */
       location?: { current: number; total: number };
     }
-  /** An underlined quote was tapped. */
+  /** A highlighted quote was tapped. */
   | { type: 'annotation'; cfi: string }
+  /** A highlighted word was tapped (the word as saved). */
+  | { type: 'word'; word: string }
   | { type: 'tap' }
   | { type: 'key'; key: string }
   | { type: 'search-hits'; hits: SearchHit[] }

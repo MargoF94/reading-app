@@ -1,17 +1,19 @@
 // Runs inside reader-frame.html: shows the EPUB with foliate-js and talks to the
 // reader page (its parent) with messages. The frame's Content Security Policy
 // stops any scripts inside the book from running.
-import { View, type RelocateDetail, type SearchResult, type TocItem } from 'foliate-js/view.js';
+import { View, type OverlayRect, type RelocateDetail, type SearchResult, type TocItem } from 'foliate-js/view.js';
 import { collapse, compare } from 'foliate-js/epubcfi.js';
-import { Overlayer } from 'foliate-js/overlayer.js';
+import { findWords } from '../lib/highlights';
 import {
   chapterTarget,
   CUSTOM_FONT,
   isJapanese,
+  markStyle,
   readerCss,
   sentenceAt,
   THEME_COLORS,
   type FromFrame,
+  type MarkStyle,
   type ReaderPrefs,
   type StartPlace,
   type TocEntry,
@@ -24,7 +26,10 @@ let view: View | null = null;
 let file: File | null = null;
 let prefs: ReaderPrefs | null = null;
 let lang = '';
-let annotations = new Set<string>(); // cfis of saved quotes, underlined
+let annotations = new Set<string>(); // cfis of saved quotes, highlighted light grey
+let words: string[] = []; // saved words, highlighted mint green wherever they appear
+const WORD = 'word:'; // start of a word highlight's key: word:<n>:<the word>
+const wordMarks = new Map<number, string[]>(); // the word highlights drawn in each chapter
 let bookmarks: string[] = [];
 let lastRelocate: RelocateDetail | null = null;
 let annotationTapped = false;
@@ -62,6 +67,7 @@ function applyPrefs(p: ReaderPrefs) {
   if (!view?.renderer) return;
   const before = prefs;
   prefs = p;
+  if (before && before.theme !== p.theme) redrawMarks();
   document.body.style.background = THEME_COLORS[p.theme].bg;
   view.style.background = THEME_COLORS[p.theme].bg;
   // Side margins as padding around the book: the renderer's own gap runs along the
@@ -95,6 +101,7 @@ async function open(f: File, cfi: string | undefined, p: ReaderPrefs, start?: St
   view?.remove();
   file = f;
   shown = false;
+  wordMarks.clear();
   const v = document.createElement('foliate-view') as View;
   view = v;
   document.body.append(v);
@@ -124,18 +131,20 @@ async function open(f: File, cfi: string | undefined, p: ReaderPrefs, start?: St
     { capture: true },
   );
   v.addEventListener('relocate', (e) => onRelocate((e as CustomEvent<RelocateDetail>).detail));
-  // Saved quotes are underlined; they're drawn again whenever a chapter is laid out.
-  v.addEventListener('create-overlay', () => {
-    for (const cfi of annotations) void v.addAnnotation({ value: cfi }).catch(() => {});
+  // Saved quotes and words are highlighted; again whenever a chapter is laid out.
+  v.addEventListener('create-overlay', (e) => {
+    const { index } = (e as CustomEvent<{ index: number }>).detail;
+    void markQuotes(annotations).then(() => markWords(index));
   });
   v.addEventListener('draw-annotation', (e) => {
-    const { draw, doc } = (e as CustomEvent<{ draw: (f: unknown, o: unknown) => void; doc?: Document }>).detail;
-    const writingMode = doc?.defaultView?.getComputedStyle(doc.body).writingMode;
-    draw(Overlayer.underline, { color: THEME_COLORS[(wanted ?? prefs)?.theme ?? 'sepia'].link, width: 2, writingMode });
+    const { draw } = (e as CustomEvent<{ draw: (f: unknown, o: unknown) => void }>).detail;
+    draw(marker, style('quote'));
   });
   v.addEventListener('show-annotation', (e) => {
     annotationTapped = true;
-    post({ type: 'annotation', cfi: (e as CustomEvent<{ value: string }>).detail.value });
+    const { value } = (e as CustomEvent<{ value: string }>).detail;
+    if (value.startsWith(WORD)) post({ type: 'word', word: value.slice(value.indexOf(':', WORD.length) + 1) });
+    else post({ type: 'annotation', cfi: value });
   });
   // Links to other websites open outside the reader.
   v.addEventListener('external-link', (e) => {
@@ -162,6 +171,55 @@ async function open(f: File, cfi: string | undefined, p: ReaderPrefs, start?: St
   }
   await v.init({ lastLocation: at, showTextStart: !at });
   if (view === v) shown = true;
+}
+
+// ---- highlights ----
+
+const style = (kind: 'quote' | 'word') => markStyle(kind, (wanted ?? prefs)?.theme ?? 'sepia');
+
+/** A highlighter mark over the text (one rounded box per line it covers). */
+function marker(rects: OverlayRect[], s: MarkStyle): SVGElement {
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('fill', s.fill);
+  g.style.opacity = String(s.opacity);
+  g.style.mixBlendMode = s.blend;
+  for (const r of rects) {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    el.setAttribute('x', String(r.left - 1));
+    el.setAttribute('y', String(r.top));
+    el.setAttribute('width', String(r.width + 2));
+    el.setAttribute('height', String(r.height));
+    el.setAttribute('rx', '3');
+    g.append(el);
+  }
+  return g;
+}
+
+/**
+ * Highlights saved quotes. Words go on top of them afterwards (see markWords), so a tap on
+ * a word inside a quote shows the word.
+ */
+function markQuotes(cfis: Iterable<string>): Promise<unknown> {
+  return Promise.all([...cfis].map((cfi) => view?.addAnnotation({ value: cfi }).catch(() => {})));
+}
+
+/** Highlights the saved words in a laid-out chapter (or every chapter on screen). */
+function markWords(index?: number) {
+  for (const { index: i, doc, overlayer } of view?.renderer.getContents() ?? []) {
+    if ((index !== undefined && i !== index) || !doc || !overlayer) continue;
+    for (const key of wordMarks.get(i) ?? []) overlayer.remove(key);
+    const keys = findWords(doc, words).map(({ range, word }, n) => {
+      const key = `${WORD}${n}:${word}`;
+      overlayer.add(key, range, marker, style('word'));
+      return key;
+    });
+    wordMarks.set(i, keys);
+  }
+}
+
+/** Highlights drawn again (in the new theme's colours). */
+function redrawMarks() {
+  void markQuotes(annotations).then(() => markWords());
 }
 
 let selectionTimer: ReturnType<typeof setTimeout> | undefined;
@@ -227,7 +285,7 @@ function onLoad(doc: Document, index: number) {
     // Where the tap was on screen: the page's frame may be scrolled inside the renderer.
     const frame = doc.defaultView?.frameElement;
     const x = (frame?.getBoundingClientRect().left ?? 0) + e.clientX;
-    // Taps on an underlined quote open it instead (that handler runs alongside this one).
+    // Taps on a highlighted quote or word open it instead (that handler runs alongside this one).
     setTimeout(() => {
       if (annotationTapped) annotationTapped = false;
       else tapAt(x);
@@ -354,10 +412,15 @@ addEventListener('message', (e: MessageEvent<ToFrame>) => {
     case 'annotations': {
       const next = new Set(m.cfis);
       for (const cfi of annotations) if (!next.has(cfi)) void view?.deleteAnnotation({ value: cfi }).catch(() => {});
-      for (const cfi of next) if (!annotations.has(cfi)) void view?.addAnnotation({ value: cfi }).catch(() => {});
+      const added = [...next].filter((cfi) => !annotations.has(cfi));
       annotations = next;
+      if (added.length) void markQuotes(added).then(() => markWords());
       break;
     }
+    case 'words':
+      words = m.words;
+      markWords();
+      break;
     case 'bookmarks':
       bookmarks = m.cfis;
       if (lastRelocate) onRelocate(lastRelocate);

@@ -24,10 +24,23 @@ declare module 'foliate-js/view.js' {
     subitems?: { cfi: string; excerpt: { pre: string; match: string; post: string } }[];
     progress?: number;
   }
+  export interface OverlayRect {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  }
+  /** A chapter's highlights, drawn over its text. */
+  export interface Overlay {
+    add<T>(key: string, range: Range, draw: (rects: OverlayRect[], options: T) => SVGElement, options: T): void;
+    remove(key: string): void;
+  }
   export interface Renderer extends HTMLElement {
     page: number;
     pages: number;
     setStyles(css: string): void;
+    /** The chapter laid out now, with its overlay for highlights. */
+    getContents(): { index: number; doc?: Document; overlayer?: Overlay }[];
   }
   export class View extends HTMLElement {
     book: Book;
@@ -56,10 +69,4 @@ declare module 'foliate-js/view.js' {
 declare module 'foliate-js/epubcfi.js' {
   export function collapse(cfi: string, toEnd?: boolean): string;
   export function compare(a: string, b: string): number;
-}
-
-declare module 'foliate-js/overlayer.js' {
-  export class Overlayer {
-    static underline(rects: unknown, options?: { color?: string; width?: number; writingMode?: string }): SVGElement;
-  }
 }

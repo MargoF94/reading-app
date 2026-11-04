@@ -5,6 +5,7 @@
   import ReaderSettings from '../components/reader/ReaderSettings.svelte';
   import ReaderSheet from '../components/reader/ReaderSheet.svelte';
   import QuoteForm from '../components/quotes/QuoteForm.svelte';
+  import WordEntry from '../components/vocab/WordEntry.svelte';
   import WordForm from '../components/vocab/WordForm.svelte';
   import { getMeta, setMeta } from '../lib/db';
   import { deviceFiles } from '../lib/deviceFiles.svelte';
@@ -33,7 +34,7 @@
   import { sync } from '../lib/sync.svelte';
   import { toasts } from '../lib/toast.svelte';
   import { quoteText } from '../lib/quotes';
-  import type { Quote, ReaderBookmark } from '../lib/types';
+  import type { Quote, ReaderBookmark, VocabWord } from '../lib/types';
   import { debounce, newId, nowIso, today } from '../lib/util';
   import { formatDuration, timeLeft } from '../lib/readingTime';
   import type { ReadingTime } from '../lib/types';
@@ -55,7 +56,7 @@
   let prefs = $state<ReaderPrefs>({ ...DEFAULT_PREFS });
   let controls = $state(false);
   let contentsTab = $state<'chapters' | 'search'>('chapters');
-  let sheet = $state<null | 'settings' | 'contents' | 'quote' | 'word' | 'edit-quote'>(null);
+  let sheet = $state<null | 'settings' | 'contents' | 'quote' | 'word' | 'edit-quote' | 'edit-word'>(null);
   // Text selected in the book, to save as a quote or look up as a word.
   let selection = $state<{ text: string; cfi?: string; sentence?: string } | null>(null);
   const word = $derived(selection ? selectedWord(selection.text) : undefined);
@@ -100,8 +101,12 @@
 
   const bookmarks = $derived(stored?.bookmarks ?? []);
   const bookQuotes = $derived(library.quotesFor(itemId).filter((q) => q.fileId === fileId && q.cfi));
-  let shownQuote = $state<Quote | null>(null); // an underlined quote that was tapped
+  let shownQuote = $state<Quote | null>(null); // a highlighted quote that was tapped
   let editingQuote = $state<Quote | null>(null);
+  // Words saved from this book, highlighted wherever they appear in it.
+  const bookWords = $derived(library.wordsFor(itemId));
+  let shownWord = $state<VocabWord | null>(null); // a highlighted word that was tapped
+  let editingWord = $state<VocabWord | null>(null);
 
   $effect(() => {
     if (phase !== 'reading') return;
@@ -110,6 +115,10 @@
   $effect(() => {
     if (phase !== 'reading') return;
     post({ type: 'annotations', cfis: bookQuotes.map((q) => q.cfi!) });
+  });
+  $effect(() => {
+    if (phase !== 'reading') return;
+    post({ type: 'words', words: bookWords.map((w) => w.word) });
   });
 
   async function toggleBookmark() {
@@ -150,6 +159,18 @@
     await library.deleteQuote(q);
     shownQuote = null;
   }
+
+  async function removeWord(w: VocabWord) {
+    if (!confirm(`Remove “${w.word}” from Words?`)) return;
+    await library.deleteWord(w);
+    shownWord = null;
+  }
+
+  /** The saved word a highlight is for (as the page found it). */
+  const savedWord = (word: string) => {
+    const key = word.normalize('NFC').trim().toLocaleLowerCase();
+    return bookWords.find((w) => w.word.normalize('NFC').trim().toLocaleLowerCase() === key) ?? null;
+  };
 
   const post = (m: ToFrame) => frame?.contentWindow?.postMessage(m, location.origin);
 
@@ -397,12 +418,20 @@
         break;
       case 'annotation':
         shownQuote = bookQuotes.find((q) => q.cfi === m.cfi) ?? null;
+        shownWord = null;
+        controls = false;
+        break;
+      case 'word':
+        shownWord = savedWord(m.word);
+        shownQuote = null;
         controls = false;
         break;
       case 'tap':
         activity();
-        if (shownQuote) shownQuote = null;
-        else if (sheet) sheet = null;
+        if (shownQuote || shownWord) {
+          shownQuote = null;
+          shownWord = null;
+        } else if (sheet) sheet = null;
         else controls = !controls;
         break;
       case 'key':
@@ -427,8 +456,10 @@
   }
 
   function escape() {
-    if (shownQuote) shownQuote = null;
-    else if (sheet) sheet = null;
+    if (shownQuote || shownWord) {
+      shownQuote = null;
+      shownWord = null;
+    } else if (sheet) sheet = null;
     else if (selection) clearSelection();
     else if (controls) controls = false;
     else void close();
@@ -549,6 +580,7 @@
       return;
     }
     shownQuote = null;
+    shownWord = null;
     sheet = null;
     controls = false;
   }
@@ -672,7 +704,7 @@
 >
   <iframe bind:this={frame} src={FRAME_URL} title={item?.title ?? 'Book'} class:hidden={phase !== 'reading'}></iframe>
 
-  {#if sheet || shownQuote}
+  {#if sheet || shownQuote || shownWord}
     <button type="button" class="scrim" tabindex="-1" aria-hidden="true" onpointerdown={outsideDown} onclick={outsideTap}></button>
   {/if}
 
@@ -711,6 +743,28 @@
         >
         <button type="button" class="btn small" onclick={() => copyQuote(shownQuote!)}><Icon name="copy" size={15} /> Copy</button>
         <button type="button" class="btn ghost small danger-text" onclick={() => removeQuote(shownQuote!)}>Remove</button>
+      </div>
+    </div>
+  {/if}
+
+  {#if shownWord && !sheet}
+    <div class="quote-pop word-pop" role="dialog" aria-label="Saved word">
+      <div class="row qp-head">
+        <span class="small muted">In your Words</span>
+        <button type="button" class="btn ghost icon small" aria-label="Close" onclick={() => (shownWord = null)}><Icon name="close" size={16} /></button>
+      </div>
+      <WordEntry word={shownWord} />
+      <div class="row qp-actions">
+        <button
+          type="button"
+          class="btn small"
+          onclick={() => {
+            editingWord = shownWord;
+            shownWord = null;
+            sheet = 'edit-word';
+          }}><Icon name="edit" size={15} /> Edit</button
+        >
+        <button type="button" class="btn ghost small danger-text" onclick={() => removeWord(shownWord!)}>Remove</button>
       </div>
     </div>
   {/if}
@@ -869,6 +923,10 @@
   {:else if sheet === 'edit-quote' && item && editingQuote}
     <ReaderSheet title="Edit quote" onclose={closeSheet}>
       <QuoteForm {item} quote={editingQuote} onclose={closeSheet} onsaved={() => toasts.show('Quote saved.')} />
+    </ReaderSheet>
+  {:else if sheet === 'edit-word' && item && editingWord}
+    <ReaderSheet title="Edit word" onclose={closeSheet}>
+      <WordForm {item} word={editingWord} onclose={closeSheet} onsaved={() => toasts.show('Word saved.')} />
     </ReaderSheet>
   {/if}
 </div>
