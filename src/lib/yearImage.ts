@@ -2,6 +2,7 @@
 import { coverSrc } from './covers';
 import type { Stats } from './stats';
 import { compact } from './stats';
+import { ficCoverColors, titleScale } from './ficCover';
 import type { Item } from './types';
 import { hashHue } from './util';
 
@@ -67,6 +68,7 @@ async function loadAll(items: Item[]): Promise<(ImageBitmap | undefined)[]> {
 }
 
 function drawPlaceholder(ctx: CanvasRenderingContext2D, item: Item, x: number, y: number, w: number, h: number) {
+  if (item.type === 'fic') return drawFicPlaceholder(ctx, item, x, y, w, h);
   const hue = hashHue(item.fic?.fandoms[0] ?? item.title);
   const g = ctx.createLinearGradient(x, y, x + w, y + h);
   g.addColorStop(0, `hsl(${hue} 16% 34%)`);
@@ -79,6 +81,34 @@ function drawPlaceholder(ctx: CanvasRenderingContext2D, item: Item, x: number, y
   ctx.font = `600 ${size}px Georgia, 'Hiragino Mincho ProN', serif`;
   const lines = wrap(ctx, item.title, w - 12, Math.max(1, Math.floor((h * 0.6) / (size * 1.2))));
   lines.forEach((l, i) => ctx.fillText(l, x + 6, y + 8 + size + i * size * 1.2));
+}
+
+/** A fic without a picture, as its cover looks in the app: three bands, the title in the middle. */
+function drawFicPlaceholder(ctx: CanvasRenderingContext2D, item: Item, x: number, y: number, w: number, h: number) {
+  const c = ficCoverColors(item);
+  const top = Math.round(h * 0.33);
+  const bottom = Math.round(h * 0.16);
+  const line = Math.max(1, Math.round(w * 0.016));
+  ctx.fillStyle = c.paper;
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = c.band;
+  ctx.fillRect(x, y, w, top);
+  ctx.fillRect(x, y + h - bottom, w, bottom);
+  ctx.fillStyle = c.rule;
+  ctx.fillRect(x, y + top, w, line);
+  ctx.fillRect(x, y + h - bottom - line, w, line);
+  if (w < 40) return;
+  const size = Math.max(9, Math.round((w / 9) * titleScale(item.title)));
+  const lead = size * 1.15;
+  const middle = h - top - bottom - 2 * line;
+  ctx.save();
+  ctx.font = `500 ${size}px Literata, Georgia, 'Hiragino Mincho ProN', serif`;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#22201c';
+  const lines = wrap(ctx, item.title, w * 0.82, Math.max(1, Math.floor((middle * 0.85) / lead)));
+  const first = y + top + line + (middle - lines.length * lead) / 2 + size * 0.85;
+  lines.forEach((l, i) => ctx.fillText(l, x + w / 2, first + i * lead));
+  ctx.restore();
 }
 
 export async function renderYearImage(year: number, stats: Stats, items: Item[]): Promise<Blob> {
@@ -150,6 +180,8 @@ export async function renderYearImage(year: number, stats: Stats, items: Item[])
   }
   const ch = cw * 1.5;
   const bitmaps = await loadAll(shown);
+  // Fic covers without a picture have their titles in Literata.
+  await document.fonts.load('500 24px Literata').catch(() => undefined);
   shown.forEach((item, i) => {
     // Centre a row that isn't full.
     const inRow = Math.min(cols, shown.length - Math.floor(i / cols) * cols);

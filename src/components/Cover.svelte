@@ -3,6 +3,7 @@
   import { library } from '../lib/store.svelte';
   import type { Item } from '../lib/types';
   import { hashHue } from '../lib/util';
+  import FicCover from './FicCover.svelte';
 
   // `preview` shows an image that isn't saved yet (e.g. a photo picked in the form).
   // `width` is in pixels, or any CSS length (e.g. one that changes with screen size).
@@ -13,18 +14,22 @@
   const hue = $derived(hashHue(item.fic?.fandoms[0] ?? item.title));
   const author = $derived(library.authorNames(item));
 
+  const url = $derived(preview ?? item.coverUrl);
+
   $effect(() => {
-    const url = preview ?? item.coverUrl;
+    const u = url;
     failed = false;
     src = null;
-    if (!url) return;
-    if (!isRepoCover(url)) {
-      src = url;
+    if (!u) return;
+    if (!isRepoCover(u)) {
+      src = u;
       return;
     }
     let cancelled = false;
-    coverSrc(url).then((s) => {
-      if (!cancelled) src = s;
+    coverSrc(u).then((s) => {
+      if (cancelled) return;
+      src = s;
+      failed = !s;
     });
     return () => {
       cancelled = true;
@@ -35,11 +40,14 @@
 <div class="cover" style:width={typeof width === 'number' ? `${width}px` : width} style:--hue={hue}>
   {#if src && !failed}
     <img {src} alt="" loading="lazy" onerror={() => (failed = true)} />
+  {:else if url && !failed}
+    <!-- The picture is on its way. -->
+  {:else if item.type === 'fic'}
+    <FicCover {item} {author} />
   {:else}
-    <div class="generated" class:fic={item.type === 'fic'}>
+    <div class="generated">
       <span class="title">{item.title}</span>
       {#if author}<span class="author">{author}</span>{/if}
-      {#if item.type === 'fic'}<span class="badge">AO3</span>{/if}
     </div>
   {/if}
 </div>
@@ -65,8 +73,10 @@
 
   .generated {
     height: 100%;
-    text-decoration: none;
-    display: flex;
+    /* Inline, so a link around the cover doesn't underline the title. */
+    display: inline-flex;
+    vertical-align: top;
+    width: 100%;
     flex-direction: column;
     justify-content: space-between;
     gap: 0.3em;
@@ -96,16 +106,5 @@
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-  }
-
-  .badge {
-    align-self: flex-start;
-    font-family: var(--font);
-    font-size: max(8px, 8cqw);
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    background: rgb(255 255 255 / 0.2);
-    border-radius: 3px;
-    padding: 0 0.4em;
   }
 </style>

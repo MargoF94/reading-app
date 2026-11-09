@@ -431,11 +431,11 @@
     border-radius: 4px;
   }
 
+  /* In a corner, clear of the writing on the cover. */
   .cover-hint {
     position: absolute;
-    left: 50%;
-    bottom: 8px;
-    translate: -50% 0;
+    right: 8px;
+    top: 8px;
     display: inline-flex;
     align-items: center;
     gap: 0.3em;
