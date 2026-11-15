@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { convert } from '../src/lib/fx';
 import { isbn10to13, isbn13to10, parseIsbn, validIsbn13 } from '../src/lib/isbn';
-import { goodreadsSlugQuery, lookupIsbn, mergeDrafts, normalizePubDate } from '../src/lib/lookup';
+import { goodreadsSlugQuery, isComicCcode, isMangaSubject, lookupIsbn, mergeDrafts, normalizePubDate } from '../src/lib/lookup';
 
 describe('ISBN', () => {
   it('converts and validates', () => {
@@ -69,6 +69,27 @@ describe('lookupIsbn', () => {
       source: 'Google Books + Open Library',
       book: { pageCount: 296, publisher: 'Vintage', publicationDate: '2000', isbn13: '9780375704024', isbn10: '0375704027' },
     });
+  });
+
+  it('recognises manga', async () => {
+    expect(isMangaSubject('Comics & Graphic Novels / Manga / General')).toBe(true);
+    expect(isMangaSubject('Comics & Graphic Novels')).toBe(false);
+    expect(isComicCcode('C0979')).toBe(true); // comics
+    expect(isComicCcode('9979')).toBe(true);
+    expect(isComicCcode('C0093')).toBe(false); // Japanese fiction
+    expect(isComicCcode(undefined)).toBe(false);
+    expect(mergeDrafts([{ type: 'book', source: 'A', title: 'T', book: {} }, { type: 'manga', source: 'B', title: 'T', book: {} }])?.type).toBe('manga');
+
+    // A Japanese comic: openBD's book code says so.
+    vi.stubGlobal('fetch', async (url: string) => {
+      if (url.includes('openbd')) {
+        return new Response(
+          JSON.stringify([{ summary: { title: '灯の町', volume: '1', author: '空 明／著', publisher: '架空社', pubdate: '20240105' }, onix: { DescriptiveDetail: { Subject: [{ SubjectSchemeIdentifier: '78', SubjectCode: '0979' }] } } }]),
+        );
+      }
+      return new Response('{}', { status: 404 });
+    });
+    expect(await lookupIsbn('9784000000000')).toMatchObject({ type: 'manga', title: '灯の町 1', source: 'openBD' });
   });
 
   it('returns nothing when every source fails', async () => {

@@ -18,6 +18,7 @@ export interface CharacterEntry {
   key: string;
   items: Item[];
   books: number;
+  manga: number;
   fics: number;
 }
 
@@ -31,7 +32,7 @@ export function characterIndex(characters: Character[], items: Item[]): Characte
   const entryFor = (c: Character | undefined, key: string, name: string) => {
     const id = c ? `c:${c.id}` : `t:${key}`;
     let e = entries.get(id);
-    if (!e) entries.set(id, (e = { character: c, name: c?.name ?? name, key, items: [], books: 0, fics: 0 }));
+    if (!e) entries.set(id, (e = { character: c, name: c?.name ?? name, key, items: [], books: 0, manga: 0, fics: 0 }));
     return e;
   };
   for (const c of live) entryFor(c, charKey(c.name), c.name);
@@ -50,6 +51,7 @@ export function characterIndex(characters: Character[], items: Item[]): Characte
     for (const e of seen) {
       e.items.push(item);
       if (item.type === 'fic') e.fics++;
+      else if (item.type === 'manga') e.manga++;
       else e.books++;
     }
   }
@@ -68,12 +70,23 @@ export function mainImage(c: Character | undefined): ItemImage | undefined {
   return imgs.find((i) => i.id === c?.mainImageId) ?? imgs[0];
 }
 
-/** "1 book · 3 fics" */
-export function appearances(books: number, fics: number): string {
+function appearanceParts(e: Pick<CharacterEntry, 'books' | 'manga' | 'fics'>): string[] {
   const parts = [];
-  if (books) parts.push(`${books} ${books === 1 ? 'book' : 'books'}`);
-  if (fics) parts.push(`${fics} ${fics === 1 ? 'fic' : 'fics'}`);
-  return parts.join(' · ') || 'Not in any book or fic yet';
+  if (e.books) parts.push(`${e.books} ${e.books === 1 ? 'book' : 'books'}`);
+  if (e.manga) parts.push(`${e.manga} manga`);
+  if (e.fics) parts.push(`${e.fics} ${e.fics === 1 ? 'fic' : 'fics'}`);
+  return parts;
+}
+
+/** "1 book · 2 manga · 3 fics" */
+export function appearances(e: Pick<CharacterEntry, 'books' | 'manga' | 'fics'>): string {
+  return appearanceParts(e).join(' · ') || 'Not in any book, manga or fic yet';
+}
+
+/** "1 book, 2 manga and 3 fics" */
+export function appearancesSentence(e: Pick<CharacterEntry, 'books' | 'manga' | 'fics'>): string {
+  const parts = appearanceParts(e);
+  return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : (parts[0] ?? 'no books, manga or fics yet');
 }
 
 /** "Piranesi, Matthew Rose Sorensen" → ["Piranesi", "Matthew Rose Sorensen"] */

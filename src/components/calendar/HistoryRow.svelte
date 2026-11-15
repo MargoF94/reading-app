@@ -1,6 +1,7 @@
 <script lang="ts">
   import { daysBetween, type HistoryEvent } from '../../lib/schedule';
   import { library } from '../../lib/store.svelte';
+  import { TYPE_LABEL } from '../../lib/constants';
   import { formatMoney } from '../../lib/util';
   import EventCover from './EventCover.svelte';
 
@@ -44,7 +45,7 @@
   <a href="#/item/{item.id}" aria-hidden="true" tabindex="-1"><EventCover {item} kind={event.kind} width={coverWidth} /></a>
   <div class="info">
     <a class="title" href="#/item/{item.id}">{item.title}</a>
-    <span class="small muted">{library.authorNames(item) || (item.type === 'fic' ? 'Fic' : 'Book')}</span>
+    <span class="small muted">{library.authorNames(item) || TYPE_LABEL[item.type]}</span>
     {#if detail}<span class="small muted">{detail}</span>{/if}
   </div>
 </div>

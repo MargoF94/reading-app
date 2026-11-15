@@ -11,6 +11,7 @@
 // (browsers slow those down in background tabs).
 import type { ItemDraft } from '../drafts';
 import type { Item } from '../types';
+import { isBookLike } from '../types';
 import { collectGoodreads } from './goodreads-page';
 
 export const GOODREADS_ORIGIN = 'https://www.goodreads.com';
@@ -21,7 +22,7 @@ export function goodreadsId(item: Item): string | undefined {
 
 /** Books that can be updated: they have a Goodreads link (and, unless `again`, haven't been updated yet). */
 export function updateCandidates(items: Item[], again = false): Item[] {
-  return items.filter((i) => i.type === 'book' && !i.deleted && goodreadsId(i) && (again || !i.book?.goodreadsCheckedAt));
+  return items.filter((i) => isBookLike(i.type) && !i.deleted && goodreadsId(i) && (again || !i.book?.goodreadsCheckedAt));
 }
 
 type NameCollection = 'authors' | 'publishers' | 'series' | 'genres';

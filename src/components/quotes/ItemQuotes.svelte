@@ -2,6 +2,7 @@
   import { quoteText } from '../../lib/quotes';
   import { library } from '../../lib/store.svelte';
   import type { Item, Quote } from '../../lib/types';
+  import { TYPE_NOUN } from '../../lib/constants';
   import Icon from '../Icon.svelte';
   import QuoteActions from './QuoteActions.svelte';
   import QuoteEntry from './QuoteEntry.svelte';
@@ -48,7 +49,7 @@
       {/each}
     </ol>
   {:else if editing !== 'new'}
-    <p class="muted small">No quotes yet. Save passages from this {item.type === 'fic' ? 'fic' : 'book'} you want to keep.</p>
+    <p class="muted small">No quotes yet. Save passages from this {TYPE_NOUN[item.type]} you want to keep.</p>
   {/if}
 </section>
 

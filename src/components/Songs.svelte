@@ -11,6 +11,7 @@
   } from '../lib/appleMusic';
   import { library } from '../lib/store.svelte';
   import type { Item, Song } from '../lib/types';
+  import { TYPE_NOUN } from '../lib/constants';
   import { newId, songUrl } from '../lib/util';
   import Icon from './Icon.svelte';
 
@@ -302,7 +303,7 @@
       {/each}
     </ol>
   {:else if editing !== 'new'}
-    <p class="muted small">No songs yet. Add ones that remind you of this {item.type === 'fic' ? 'fic' : 'book'}.</p>
+    <p class="muted small">No songs yet. Add ones that remind you of this {TYPE_NOUN[item.type]}.</p>
   {/if}
   {#if editing === 'new'}{@render form()}{/if}
 </section>

@@ -5,6 +5,7 @@ import { htmlToMarkdown } from '../src/lib/html';
 import { collectAo3, parseAo3Html } from '../src/lib/import/ao3';
 import {
   guessShelfStatus,
+  isMangaBinding,
   mapBinding,
   parseGoodreadsCsv,
   parseGoodreadsTitle,
@@ -197,6 +198,23 @@ describe('Goodreads CSV', () => {
     expect(guessShelfStatus('did-not-finish')).toBe('dnf');
     expect(guessShelfStatus('on-hold')).toBe('on-hold');
     expect(guessShelfStatus('favourites')).toBe('want-to-read');
+  });
+
+  it('imports manga as manga', () => {
+    const csv = [
+      CSV_HEADER,
+      '11,"Paper Lanterns, Vol. 1",Aki Sora,"Sora, Aki",,="",="",0,Some Press,Paperback,190,2021,2021,,2024/03/01,manga,,to-read,,,,0,0',
+      '12,Harbor Lights 2,Aki Sora,"Sora, Aki",,="",="",0,,Comics,180,2021,2021,,2024/03/02,,,read,,,,1,0',
+      '13,A Quiet Novel,Ben Ink,"Ink, Ben",,="",="",0,,Tankobon Hardcover,300,2021,2021,,2024/03/03,,,to-read,,,,0,0',
+    ].join('\n');
+    const books = parseGoodreadsCsv(csv).books;
+    expect(books.map((b) => b.manga)).toEqual([true, true, false]);
+    expect(books[1].format).toBeUndefined(); // "Comics" says manga, not how it's bound
+    const plan = planGoodreadsImport(books, emptyCollections(), { shelfStatus: {}, shelvesAsTags: false, guessLanguage: false, additionalAuthors: false }, '2026-11-15T00:00:00.000Z');
+    expect(plan.records.items.map((i) => i.type)).toEqual(['manga', 'manga', 'book']);
+    expect(plan.records.items[0].book?.format).toBe('paperback');
+    expect(isMangaBinding('Comic')).toBe(true);
+    expect(isMangaBinding('Tankobon Softcover')).toBe(false);
   });
 
   it('reads the export and plans an import', () => {

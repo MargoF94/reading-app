@@ -4,7 +4,7 @@ import { LANGUAGES } from '../constants';
 import type { ItemDraft } from '../drafts';
 import { htmlToMarkdown } from '../html';
 import { parseIsbn } from '../isbn';
-import { mapBinding } from './goodreads-csv';
+import { isMangaBinding, mapBinding } from './goodreads-csv';
 
 export interface GoodreadsPayload {
   s: 'gr';
@@ -96,10 +96,9 @@ export function parseGoodreadsPayload(p: GoodreadsPayload): ItemDraft {
     const desc = str(b.description) ?? str(b['description({"stripped":true})']);
     if (desc) draft.description = htmlToMarkdown(desc);
     draft.coverUrl = str(b.imageUrl);
-    draft.genres = ((b.bookGenres as unknown[]) ?? [])
-      .map((g) => str(asObj(asObj(g)?.genre)?.name))
-      .filter((n): n is string => !!n)
-      .slice(0, 3);
+    const genres = ((b.bookGenres as unknown[]) ?? []).map((g) => str(asObj(asObj(g)?.genre)?.name)).filter((n): n is string => !!n);
+    draft.genres = genres.slice(0, 3);
+    if (genres.some((g) => /^manga$/i.test(g))) draft.type = 'manga';
     const series = asObj(((b.bookSeries as unknown[]) ?? [])[0]);
     if (series) {
       draft.series = str(ref(series.series)?.title);
@@ -107,6 +106,7 @@ export function parseGoodreadsPayload(p: GoodreadsPayload): ItemDraft {
     }
     const d = asObj(b.details) ?? {};
     book.format = mapBinding(str(d.format) ?? '');
+    if (isMangaBinding(str(d.format) ?? '')) draft.type = 'manga';
     if (typeof d.numPages === 'number' && d.numPages > 0 && book.format !== 'audiobook') book.pageCount = d.numPages;
     book.publicationDate = msToDate(d.publicationTime);
     book.publisher = str(d.publisher);
@@ -135,6 +135,7 @@ export function parseGoodreadsPayload(p: GoodreadsPayload): ItemDraft {
       }
       if (!book.pageCount && typeof ld.numberOfPages === 'number') book.pageCount = ld.numberOfPages;
       book.format ??= mapBinding(str(ld.bookFormat) ?? '');
+      if (isMangaBinding(str(ld.bookFormat) ?? '')) draft.type = 'manga';
       draft.language ??= languageCode(ld.inLanguage);
       draft.coverUrl ??= str(ld.image);
     } catch {

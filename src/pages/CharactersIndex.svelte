@@ -34,7 +34,7 @@
           <CharacterAvatar character={e.character} name={e.name} size={40} />
           <span class="body">
             <strong>{e.name}</strong>
-            <span class="small muted">{appearances(e.books, e.fics)}{e.character ? '' : ' · no page yet'}</span>
+            <span class="small muted">{appearances(e)}{e.character ? '' : ' · no page yet'}</span>
           </span>
         </a>
       </li>

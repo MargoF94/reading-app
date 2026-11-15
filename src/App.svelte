@@ -26,6 +26,7 @@
   import GoodreadsUpdate from './pages/GoodreadsUpdate.svelte';
   import Import from './pages/Import.svelte';
   import ItemForm from './pages/ItemForm.svelte';
+  import { TYPES } from './lib/constants';
   import ItemPage from './pages/ItemPage.svelte';
   import Library from './pages/Library.svelte';
   import NotFound from './pages/NotFound.svelte';
@@ -137,7 +138,7 @@
     {:else if seg[0] === 'add'}
       {#key router.route.query.get('draft') ?? router.route.query.get('type')}
         <ItemForm
-          type={router.route.query.get('type') === 'fic' ? 'fic' : 'book'}
+          type={TYPES.find((t) => t.value === router.route.query.get('type'))?.value ?? 'book'}
           draftId={router.route.query.get('draft') ?? undefined}
         />
       {/key}

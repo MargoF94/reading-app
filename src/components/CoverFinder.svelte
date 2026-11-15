@@ -2,6 +2,7 @@
   import { findCovers, type CoverProgress } from '../lib/coverFinder';
   import { library } from '../lib/store.svelte';
   import type { Item } from '../lib/types';
+  import { isBookLike } from '../lib/types';
   import { plural } from '../lib/util';
   import ProgressBar from './ProgressBar.svelte';
 
@@ -15,7 +16,7 @@
   let ctrl: AbortController | null = null;
 
   const candidates = $derived(
-    library.items.filter((i) => i.type === 'book' && !i.coverUrl && (!itemIds || itemIds.includes(i.id))),
+    library.items.filter((i) => isBookLike(i.type) && !i.coverUrl && (!itemIds || itemIds.includes(i.id))),
   );
 
   async function start() {

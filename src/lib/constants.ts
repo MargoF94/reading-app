@@ -1,4 +1,4 @@
-import type { Ao3Rating, BookFormat, Currency, PurchaseSource, Settings, Status } from './types';
+import type { Ao3Rating, BookFormat, Currency, ItemType, PurchaseSource, Settings, Status } from './types';
 
 export const STATUSES: { value: Status; label: string }[] = [
   { value: 'want-to-read', label: 'Want to Read' },
@@ -17,7 +17,6 @@ export const FORMATS: { value: BookFormat; label: string }[] = [
   { value: 'paperback', label: 'Paperback' },
   { value: 'hardcover', label: 'Hardcover' },
   { value: 'ebook', label: 'Ebook' },
-  { value: 'manga', label: 'Manga' },
   { value: 'audiobook', label: 'Audiobook' },
   { value: 'other', label: 'Other' },
 ];
@@ -26,6 +25,18 @@ export const FORMAT_LABEL = Object.fromEntries(FORMATS.map((f) => [f.value, f.la
   BookFormat,
   string
 >;
+
+/** Types of items, in the order they're offered. */
+export const TYPES: { value: ItemType; label: string; plural: string; noun: string }[] = [
+  { value: 'book', label: 'Book', plural: 'Books', noun: 'book' },
+  { value: 'manga', label: 'Manga', plural: 'Manga', noun: 'manga' },
+  { value: 'fic', label: 'Fic', plural: 'Fics', noun: 'fic' },
+];
+
+export const TYPE_LABEL = Object.fromEntries(TYPES.map((t) => [t.value, t.label])) as Record<ItemType, string>;
+export const TYPE_PLURAL = Object.fromEntries(TYPES.map((t) => [t.value, t.plural])) as Record<ItemType, string>;
+/** For sentences: "this book", "this manga", "this fic". */
+export const TYPE_NOUN = Object.fromEntries(TYPES.map((t) => [t.value, t.noun])) as Record<ItemType, string>;
 
 export const CURRENCIES: { value: Currency; label: string; symbol: string; decimals: number }[] = [
   { value: 'JPY', label: 'Japanese yen', symbol: '¥', decimals: 0 },

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { library } from '../../lib/store.svelte';
   import type { Item, ItemImage } from '../../lib/types';
+  import { TYPE_NOUN } from '../../lib/constants';
   import PictureGallery from './PictureGallery.svelte';
 
   // Pictures kept with a book or fic: character references, maps, fan art…
@@ -17,7 +18,7 @@
   images={item.images ?? []}
   ownerId={item.id}
   title={item.title}
-  empty="Keep pictures with this {item.type === 'fic' ? 'fic' : 'book'}, such as character references or maps. Upload them from your device or add a link."
+  empty="Keep pictures with this {TYPE_NOUN[item.type]}, such as character references or maps. Upload them from your device or add a link."
   latest={() => current().images ?? []}
   onsave={save}
 />

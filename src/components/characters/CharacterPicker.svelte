@@ -48,7 +48,7 @@
             <strong>{e.name}</strong>
             <span class="small muted">
               {#if e.character?.altNames.length}also: {e.character.altNames.join(', ')} · {/if}
-              {appearances(e.books, e.fics)}{!e.character ? ' (AO3 tag)' : ''}
+              {appearances(e)}{!e.character ? ' (AO3 tag)' : ''}
             </span>
           </span>
         </button>

@@ -54,6 +54,7 @@
     ),
   );
   const booksThisYear = $derived(readThisYear.filter((r) => library.item(r.itemId)?.type === 'book').length);
+  const mangaThisYear = $derived(readThisYear.filter((r) => library.item(r.itemId)?.type === 'manga').length);
   const ficsThisYear = $derived(readThisYear.filter((r) => library.item(r.itemId)?.type === 'fic').length);
 
   let updating = $state<Item | null>(null);
@@ -69,9 +70,10 @@
 {#if library.items.length === 0}
   <div class="card empty">
     <h2>Your library is empty</h2>
-    <p>Add your first book or fic to get started.</p>
+    <p>Add your first book, manga or fic to get started.</p>
     <div class="row" style="justify-content:center">
       <a class="btn primary" href="#/add">Add a book</a>
+      <a class="btn" href="#/add?type=manga">Add manga</a>
       <a class="btn" href="#/add?type=fic">Add a fic</a>
     </div>
     <p class="small" style="margin-top:1.5rem">
@@ -83,8 +85,9 @@
   <HomePlanner />
 
   <div class="stats">
-    <div class="stat"><strong>{booksThisYear}</strong><span>books read in {year}</span></div>
-    <div class="stat"><strong>{ficsThisYear}</strong><span>fics read in {year}</span></div>
+    <div class="stat"><strong>{booksThisYear}</strong><span>{booksThisYear === 1 ? 'book' : 'books'} read in {year}</span></div>
+    {#if mangaThisYear}<div class="stat"><strong>{mangaThisYear}</strong><span>manga read in {year}</span></div>{/if}
+    <div class="stat"><strong>{ficsThisYear}</strong><span>{ficsThisYear === 1 ? 'fic' : 'fics'} read in {year}</span></div>
     <a class="stat" href="#/library?status=want-to-read"><strong>{wantCount}</strong><span>want to read</span></a>
   </div>
 
@@ -199,7 +202,9 @@
 
   .stats {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    /* One row: three tiles, or four once there's manga. */
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
     gap: 0.6rem;
   }
 

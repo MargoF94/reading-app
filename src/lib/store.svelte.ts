@@ -7,7 +7,8 @@ import { emptyCollections, mergeCollections } from './merge';
 import { characterIndex } from './characters';
 import { readerProgress } from './reader';
 import { deriveStatus, sortReadings, transition } from './reading';
-import { COLLECTION_NAMES } from './types';
+import { COLLECTION_NAMES, isBookLike } from './types';
+import { upgradeCollections, upgrades } from './upgrade';
 import type {
   Author,
   BaseRecord,
@@ -122,6 +123,10 @@ class Library {
   async load(): Promise<void> {
     this.data = await db.loadAll();
     this.loaded = true;
+    // Records saved by an older version of the app: brought up to date once, and synced.
+    const up = upgrades(this.data);
+    if (up.items.length) await this.put('items', up.items);
+    if (up.readings.length) await this.put('readings', up.readings);
   }
 
   /** Called after every local change (used to schedule sync). */
@@ -158,7 +163,9 @@ class Library {
    * Only records newer than the local ones are written. Does not trigger sync.
    * Returns the number of changed records.
    */
-  async applyRemote(remote: Collections): Promise<number> {
+  async applyRemote(incoming: Collections): Promise<number> {
+    // A copy saved by an older version of the app may still have old records.
+    const remote = upgradeCollections(incoming);
     const changed: Partial<Record<CollectionName, BaseRecord[]>> = {};
     let count = 0;
     for (const name of COLLECTION_NAMES) {
@@ -285,12 +292,12 @@ class Library {
     return workId ? this.items.find((i) => i.fic?.workId === workId) : undefined;
   }
 
-  /** Existing book with this Goodreads id or ISBN-13. */
+  /** Existing book or manga with this Goodreads id or ISBN-13. */
   bookByIds(goodreadsUrl?: string, isbn13?: string): Item | undefined {
     const gr = goodreadsUrl?.match(/book\/show\/(\d+)/)?.[1];
     return this.items.find(
       (i) =>
-        i.type === 'book' &&
+        isBookLike(i.type) &&
         ((gr && i.book?.goodreadsUrl?.match(/book\/show\/(\d+)/)?.[1] === gr) || (isbn13 && i.book?.isbn13 === isbn13)),
     );
   }
@@ -467,7 +474,7 @@ class Library {
     return this.data.goals.find((g) => g.year === year && !g.deleted);
   }
 
-  async saveGoal(year: number, patch: Partial<Pick<Goal, 'books' | 'fics'>>): Promise<void> {
+  async saveGoal(year: number, patch: Partial<Pick<Goal, 'books' | 'manga' | 'fics'>>): Promise<void> {
     const now = nowIso();
     const current = this.goal(year) ?? { id: `goal-${year}`, createdAt: now, updatedAt: now, year };
     await this.put('goals', [{ ...current, ...patch }]);

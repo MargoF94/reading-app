@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { STATUS_LABEL, FORMAT_LABEL } from '../lib/constants';
+  import { STATUS_LABEL, FORMAT_LABEL, TYPE_LABEL } from '../lib/constants';
   import { activeReading, entryPercent, latestEntry } from '../lib/reading';
   import { library } from '../lib/store.svelte';
   import type { Item } from '../lib/types';
@@ -14,7 +14,7 @@
     if (status !== 'currently-reading' && status !== 'on-hold') return undefined;
     return entryPercent(item, latestEntry(activeReading(library.readings(item.id)))) ?? 0;
   });
-  const kind = $derived(item.type === 'fic' ? 'Fic' : item.book?.format ? FORMAT_LABEL[item.book.format] : 'Book');
+  const kind = $derived(item.type !== 'book' ? TYPE_LABEL[item.type] : item.book?.format ? FORMAT_LABEL[item.book.format] : 'Book');
 </script>
 
 <a class="card-link {view}" href="#/item/{item.id}">

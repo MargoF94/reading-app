@@ -15,6 +15,7 @@ import type {
   Series,
   Status,
 } from '../types';
+import { isBookLike } from '../types';
 import { newId, normalize } from '../util';
 
 export interface GoodreadsBook {
@@ -38,6 +39,8 @@ export interface GoodreadsBook {
   dateAdded?: string;
   exclusiveShelf: string;
   shelves: string[]; // custom, non-exclusive shelves
+  /** Manga, going by the binding, the title or a shelf named for manga. */
+  manga: boolean;
   review?: string; // raw Goodreads HTML
   spoiler: boolean;
   notes?: string;
@@ -81,11 +84,14 @@ export function mapBinding(binding: string): BookFormat | undefined {
   if (!b || b.includes('unknown')) return undefined;
   if (/audio|audible|mp3|cd\b/.test(b)) return 'audiobook';
   if (/kindle|ebook|e-book|nook|digital/.test(b)) return 'ebook';
-  if (/manga|comic/.test(b)) return 'manga';
   if (/hardcover|hardback|library binding|board book/.test(b)) return 'hardcover';
   if (/paperback|bunko|softcover|mass market|pocket/.test(b)) return 'paperback';
+  if (isMangaBinding(b)) return undefined; // a type of its own, not a format
   return 'other';
 }
+
+/** Bindings Goodreads gives manga. ("Tankobon" isn't one: Japanese novels come as tankōbon too.) */
+export const isMangaBinding = (binding: string): boolean => /manga|comic/i.test(binding);
 
 const EDITION_LANG: Record<string, string> = {
   japanese: 'ja',
@@ -221,6 +227,8 @@ export function parseGoodreadsCsv(text: string): GoodreadsParseResult {
       .map((s) => s.trim())
       .filter((s) => s && !exclusiveNames.has(s));
     for (const s of shelves) tagCounts.set(s, (tagCounts.get(s) ?? 0) + 1);
+    const manga =
+      isMangaBinding(r['Binding'] ?? '') || /\bmanga\b/i.test(r['Title'] ?? '') || [exclusiveShelf, ...shelves].some((s) => /manga/i.test(s));
     const publisher = cleanName(r['Publisher'] ?? '');
     const origYear = parseInt(r['Original Publication Year'] ?? '', 10);
 
@@ -245,6 +253,7 @@ export function parseGoodreadsCsv(text: string): GoodreadsParseResult {
       dateAdded: gDate(r['Date Added'] ?? ''),
       exclusiveShelf,
       shelves,
+      manga,
       review: (r['My Review'] ?? '').trim() || undefined,
       spoiler: (r['Spoiler'] ?? '').trim().toLowerCase() === 'true',
       notes: (r['Private Notes'] ?? '').trim() || undefined,
@@ -387,7 +396,7 @@ export function planGoodreadsImport(
   // Duplicate detection against the existing library and within the file.
   // Books already in the library are skipped. Within the file only exact Goodreads
   // ids repeat; two entries with the same title are usually different editions.
-  const liveItems = live(existing.items).filter((i) => i.type === 'book');
+  const liveItems = live(existing.items).filter((i) => isBookLike(i.type));
   const seenGr = new Set(liveItems.map(goodreadsIdOf).filter(Boolean));
   const libraryIsbn = new Set(liveItems.map((i) => i.book?.isbn13).filter(Boolean));
   const authorNames = new Map<string, string[]>();
@@ -422,7 +431,7 @@ export function planGoodreadsImport(
       id: newId(),
       createdAt,
       updatedAt: now,
-      type: 'book',
+      type: b.manga ? 'manga' : 'book',
       title: b.title,
       titleReading: b.titleReading,
       authorIds,

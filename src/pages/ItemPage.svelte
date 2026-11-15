@@ -32,6 +32,7 @@
   import { library } from '../lib/store.svelte';
   import { toasts } from '../lib/toast.svelte';
   import type { Currency } from '../lib/types';
+  import { isBookLike } from '../lib/types';
   import { formatDate, formatMoney, formatNumber } from '../lib/util';
 
   let { id }: { id: string } = $props();
@@ -100,6 +101,7 @@
     const rows: [string, string, string?][] = [];
     const b = item.book;
     const f = item.fic;
+    if (item.type === 'manga') rows.push(['Type', 'Manga']);
     if (b?.format) rows.push(['Format', FORMAT_LABEL[b.format]]);
     if (b?.pageCount) rows.push(['Pages', formatNumber(b.pageCount)]);
     if (b?.durationMinutes) rows.push(['Length', formatMinutes(b.durationMinutes)]);
@@ -226,7 +228,7 @@
         </div>
       {/if}
 
-      {#if item.type === 'book'}<ItemCharacters {item} />{/if}
+      {#if isBookLike(item.type)}<ItemCharacters {item} />{/if}
 
       {#if item.fic?.url}
         <p><a href={item.fic.url} target="_blank" rel="noopener noreferrer">Open on AO3 <Icon name="external" size={14} /></a></p>

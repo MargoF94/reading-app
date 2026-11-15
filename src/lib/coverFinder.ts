@@ -2,6 +2,7 @@
 // Open Library search by title + author for books without an ISBN.
 import { openLibraryByIsbns } from './lookup';
 import type { Item } from './types';
+import { isBookLike } from './types';
 import { normalize } from './util';
 
 export interface CoverProgress {
@@ -30,7 +31,7 @@ export async function findCovers(
   signal: AbortSignal,
   searchByTitle = true,
 ): Promise<CoverProgress> {
-  const todo = items.filter((i) => i.type === 'book' && !i.coverUrl);
+  const todo = items.filter((i) => isBookLike(i.type) && !i.coverUrl);
   const progress: CoverProgress = { done: 0, total: todo.length, found: 0 };
   onProgress({ ...progress });
   let batch: Item[] = [];

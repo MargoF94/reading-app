@@ -2,6 +2,7 @@
   import { addToPhoneCalendar, openInGoogleCalendar } from '../../lib/calendarExport';
   import { durationLabel, endTime, REPEAT_LABEL, type Occurrence } from '../../lib/schedule';
   import { library } from '../../lib/store.svelte';
+  import { TYPE_LABEL } from '../../lib/constants';
   import { toasts } from '../../lib/toast.svelte';
   import EventCover from './EventCover.svelte';
   import Icon from '../Icon.svelte';
@@ -50,7 +51,7 @@
     <a href="#/item/{item.id}" aria-hidden="true" tabindex="-1"><EventCover {item} kind="scheduled" width={coverWidth} /></a>
     <div class="info">
       <a class="title" href="#/item/{item.id}">{item.title}</a>
-      <span class="small muted">{library.authorNames(item) || (item.type === 'fic' ? 'Fic' : 'Book')} · until {endTime(s.start, s.minutes)}</span>
+      <span class="small muted">{library.authorNames(item) || TYPE_LABEL[item.type]} · until {endTime(s.start, s.minutes)}</span>
       <span class="meta small muted">
         {#if s.remind !== undefined}<span><Icon name="bell" size={13} /> {s.remind === 0 ? 'at start' : `${s.remind} min before`}</span>{/if}
         {#if s.repeat}<span><Icon name="repeat" size={13} /> {REPEAT_LABEL[s.repeat].toLowerCase()}</span>{/if}

@@ -85,7 +85,7 @@
   async function save(e: Event) {
     e.preventDefault();
     const length = custom ? Number(customMinutes) : minutes;
-    if (!pickedItem) return (error = 'Choose a book or fic.');
+    if (!pickedItem) return (error = 'Choose a book, manga or fic.');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return (error = 'Choose a day.');
     if (!/^\d{2}:\d{2}$/.test(start)) return (error = 'Choose a start time.');
     if (!Number.isFinite(length) || length < 5 || length > 24 * 60) return (error = 'Reading time should be 5 minutes to 24 hours.');

@@ -15,6 +15,7 @@ describe('Amazon pages', () => {
     expect(p.u).not.toContain('?');
     const d = parseAmazonPayload(p);
     expect(d).toMatchObject({
+      type: 'manga',
       source: 'Amazon',
       title: 'カラーレシピ 上',
       authors: ['はらだ'],
@@ -22,7 +23,7 @@ describe('Amazon pages', () => {
       seriesNumber: '1',
       language: 'ja',
       coverUrl: 'https://m.media-amazon.com/images/I/51abcDEF12L.jpg',
-      book: { publisher: '新書館', publicationDate: '2018-05-01', pageCount: 196, format: 'manga' },
+      book: { publisher: '新書館', publicationDate: '2018-05-01', pageCount: 196, format: 'ebook' },
     });
     expect(d.book?.isbn13).toBeUndefined(); // a Kindle ASIN isn't an ISBN
     expect(d.description).toContain('**冬司**');
@@ -52,7 +53,8 @@ describe('Amazon pages', () => {
     new Function('document', 'location', 'window', 'alert', code)(doc, { href: KINDLE_URL }, { open: (u: string) => ((opened = u), {}) }, () => {});
     const d = draftFromPayload(decodePayload(opened.split('?d=')[1]));
     expect(d.title).toBe('カラーレシピ 上');
-    expect(d.book?.format).toBe('manga');
+    expect(d.type).toBe('manga');
+    expect(d.book?.format).toBe('ebook');
   });
 
   it('splits titles, dates and images', () => {

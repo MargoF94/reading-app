@@ -77,7 +77,7 @@ export function itemLength(item: Item, s: Settings): Length {
   const pages = b?.pageCount || undefined;
   const minutes = b?.format === 'audiobook' ? b.durationMinutes || undefined : undefined;
   const len: Length = { pages, minutes, wordsEstimated: true };
-  if (b?.format === 'manga' && !s.mangaCountsWords) return len;
+  if (item.type === 'manga' && !s.mangaCountsWords) return len;
   if (item.wordCount) {
     len.words = ja ? item.wordCount / s.jaCharsPerWord : item.wordCount;
     len.wordsEstimated = !!item.wordCountEstimated || ja;
@@ -133,6 +133,7 @@ export interface Bucket {
   key: string; // YYYY-MM or YYYY
   label: string;
   books: number;
+  manga: number;
   fics: number;
   pages: number;
   words: number;
@@ -142,6 +143,7 @@ export interface Bucket {
 export interface Stats {
   finished: { item: Item; reading: Reading }[];
   finishedBooks: number;
+  finishedManga: number;
   finishedFics: number;
   undatedFinished: number;
   dnf: number;
@@ -197,7 +199,7 @@ function makeBuckets(from: string, to: string): { buckets: Bucket[]; monthly: bo
   const [fy, fm] = from.split('-').map(Number);
   const [ty, tm] = to.split('-').map(Number);
   const months = (ty - fy) * 12 + (tm - fm) + 1;
-  const empty = { books: 0, fics: 0, pages: 0, words: 0, spent: 0 };
+  const empty = { books: 0, manga: 0, fics: 0, pages: 0, words: 0, spent: 0 };
   if (months <= 24) {
     const out: Bucket[] = [];
     for (let i = 0; i < months; i++) {
@@ -235,6 +237,7 @@ export function computeStats(data: Collections, settings: Settings, opts: StatsO
   const stats: Stats = {
     finished: [],
     finishedBooks: 0,
+    finishedManga: 0,
     finishedFics: 0,
     undatedFinished: 0,
     dnf: 0,
@@ -292,10 +295,12 @@ export function computeStats(data: Collections, settings: Settings, opts: StatsO
       stats.finished.push({ item, reading: r });
       if (!r.finishDate) stats.undatedFinished++;
       if (item.type === 'book') stats.finishedBooks++;
+      else if (item.type === 'manga') stats.finishedManga++;
       else stats.finishedFics++;
       const b = bucketOf(r.finishDate);
       if (b) {
         if (item.type === 'book') b.books++;
+        else if (item.type === 'manga') b.manga++;
         else b.fics++;
       }
       if (r.startDate && r.finishDate) daySpans.push(daysBetween(r.startDate, r.finishDate) + 1);
@@ -321,7 +326,7 @@ export function computeStats(data: Collections, settings: Settings, opts: StatsO
     for (const g of item.genreIds) bump(genres, name('genres', g));
     for (const f of item.fic?.fandoms ?? []) bump(fandoms, f);
     bump(languages, item.language ? (LANGUAGE_NAME[item.language] ?? item.language) : 'Not set');
-    bump(formats, item.type === 'fic' ? 'Fanfic' : item.book?.format ? FORMAT_LABEL[item.book.format] : 'Not set');
+    bump(formats, item.type === 'fic' ? 'Fanfic' : item.type === 'manga' ? 'Manga' : item.book?.format ? FORMAT_LABEL[item.book.format] : 'Not set');
     for (const a of item.authorIds) bump(authors, name('authors', a));
     bump(publishers, name('publishers', item.book?.publisherId));
     if (item.rating) {
@@ -390,18 +395,16 @@ export function goalPace(goal: number, done: number, year: number, today: string
   return { expected, ahead: done - expected };
 }
 
-/** Finished books and fics in a year (for goals). */
-export function finishedInYear(data: Collections, year: number): { books: number; fics: number } {
+/** Finished books, manga and fics in a year (for goals). */
+export function finishedInYear(data: Collections, year: number): Record<ItemType, number> {
   const types = new Map(data.items.filter((i) => !i.deleted).map((i) => [i.id, i.type]));
-  let books = 0;
-  let fics = 0;
+  const done: Record<ItemType, number> = { book: 0, manga: 0, fic: 0 };
   for (const r of data.readings) {
     if (r.deleted || r.outcome !== 'finished' || !r.finishDate?.startsWith(String(year))) continue;
     const t = types.get(r.itemId);
-    if (t === 'book') books++;
-    else if (t === 'fic') fics++;
+    if (t) done[t]++;
   }
-  return { books, fics };
+  return done;
 }
 
 export function compact(n: number): string {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { appearances, characterForTag, characterIndex, charKey, mainImage, splitNames, tagName } from '../src/lib/characters';
+import { appearances, appearancesSentence, characterForTag, characterIndex, charKey, mainImage, splitNames, tagName } from '../src/lib/characters';
 import type { Character, Item } from '../src/lib/types';
 
 const base = { createdAt: 'a', updatedAt: 'a' };
@@ -39,7 +39,11 @@ describe('characters', () => {
     const c = ch('x', 'X', [], { images: [{ id: '1', url: 'a', addedAt: 'a' }, { id: '2', url: 'b', addedAt: 'a' }], mainImageId: '2' });
     expect(mainImage(c)?.id).toBe('2');
     expect(mainImage(ch('y', 'Y'))).toBeUndefined();
-    expect(appearances(1, 3)).toBe('1 book · 3 fics');
+    expect(appearances({ books: 1, manga: 0, fics: 3 })).toBe('1 book · 3 fics');
+    expect(appearances({ books: 0, manga: 2, fics: 1 })).toBe('2 manga · 1 fic');
+    expect(appearances({ books: 0, manga: 0, fics: 0 })).toBe('Not in any book, manga or fic yet');
+    expect(appearancesSentence({ books: 1, manga: 2, fics: 3 })).toBe('1 book, 2 manga and 3 fics');
+    expect(appearancesSentence({ books: 2, manga: 0, fics: 0 })).toBe('2 books');
     expect(splitNames('Piranesi, Matthew Rose Sorensen、ピラネージ, Piranesi')).toEqual(['Piranesi', 'Matthew Rose Sorensen', 'ピラネージ']);
   });
 });

@@ -18,6 +18,7 @@
     AO3_WARNINGS,
     CURRENCIES,
     FORMATS,
+    TYPE_NOUN,
     LANGUAGES,
     PINNED_LANGUAGES,
     PURCHASE_SOURCES,
@@ -26,6 +27,7 @@
   import { library, type NamedCollection } from '../lib/store.svelte';
   import { toasts } from '../lib/toast.svelte';
   import type { Ao3Rating, BookFormat, Currency, Item, ItemType, Purchase, Status } from '../lib/types';
+  import { isBookLike } from '../lib/types';
   import { ao3WorkId, collator, formatDate, formatMoney, newId, normalize, nowIso, parseNumber, today } from '../lib/util';
 
   let {
@@ -44,6 +46,9 @@
   // ---- form state (numbers kept as strings while editing) ----
   // svelte-ignore state_referenced_locally
   let type = $state<ItemType>(existing?.type ?? initialType);
+  /** Books and manga have ISBNs, publishers, formats and purchases. */
+  const bookLike = $derived(isBookLike(type));
+  const ADD_TITLE: Record<ItemType, string> = { book: 'Add a book', manga: 'Add manga', fic: 'Add a fic' };
   let title = $state(existing?.title ?? '');
   let originalTitle = $state(existing?.originalTitle ?? '');
   let titleReading = $state(existing?.titleReading ?? '');
@@ -229,6 +234,12 @@
     } else banner = `Filled in missing details from ${draft.source ?? 'the import'}. Save to keep them.`;
   }
 
+  /** A book found by ISBN or title. A new entry for something that turns out to be manga becomes Manga. */
+  function picked(d: ItemDraft) {
+    if (isNew && d.type === 'manga') type = 'manga';
+    applyDraft(d, isNew);
+  }
+
   /** A fic from an AO3 file: if it's already in the library, offer to update that one instead. */
   function ficImported(d: ItemDraft, file: File) {
     const dup = isNew ? library.ficByWorkId(d.fic?.workId) : undefined;
@@ -265,7 +276,7 @@
 
     const i13 = cleanIsbn(isbn13);
     const i10 = cleanIsbn(isbn10);
-    if (type === 'book') {
+    if (bookLike) {
       if (i13 && !validIsbn13(i13)) errs.isbn13 = 'This doesn’t look like a valid ISBN-13.';
       if (i10 && !validIsbn10(i10)) errs.isbn10 = 'This doesn’t look like a valid ISBN-10.';
       if (publicationDate && !/^\d{4}(-\d{2}(-\d{2})?)?$/.test(publicationDate))
@@ -292,7 +303,7 @@
       const workId = ao3WorkId(ficUrl);
       const dup = library.items.find(
         (it) =>
-          (type === 'book' && i13 && it.book?.isbn13 === i13) ||
+          (bookLike && i13 && it.book?.isbn13 === i13) ||
           (type === 'fic' && workId && it.fic?.workId === workId),
       );
       if (dup && !confirm(`“${dup.title}” is already in your library. Add it again anyway?`)) return;
@@ -309,7 +320,7 @@
       }
       // Exchange rates for new prices (skipped quietly if offline or slow).
       let finalPurchases: Purchase[] = $state.snapshot(purchases).map((p) => ({ ...p, store: p.store?.trim() || undefined }));
-      if (type === 'book' && finalPurchases.some((p) => p.price !== undefined && !p.fx) && navigator.onLine) {
+      if (bookLike && finalPurchases.some((p) => p.price !== undefined && !p.fx) && navigator.onLine) {
         finalPurchases = await Promise.race([
           withRates(finalPurchases),
           new Promise<Purchase[]>((r) => setTimeout(() => r(finalPurchases), 6000)),
@@ -341,9 +352,9 @@
         characterIds: existing?.characterIds,
         files: existing?.files,
         wordCount: words,
-        wordCountEstimated: words !== undefined && type === 'book' ? true : undefined,
+        wordCountEstimated: words !== undefined && bookLike ? true : undefined,
       };
-      if (type === 'book') {
+      if (bookLike) {
         item.book = {
           format: format || undefined,
           pageCount: pages,
@@ -442,7 +453,7 @@
   </button>
 </div>
 
-<h1>{isNew ? (type === 'fic' ? 'Add a fic' : 'Add a book') : `Edit ${type === 'fic' ? 'fic' : 'book'}`}</h1>
+<h1>{isNew ? ADD_TITLE[type] : `Edit ${TYPE_NOUN[type]}`}</h1>
 
 {#if banner}<p class="banner" role="status">{banner}</p>{/if}
 {#if keptFile}
@@ -467,16 +478,29 @@
   {#if isNew}
     <div class="type-switch" role="radiogroup" aria-label="Type">
       <label class:on={type === 'book'}>
-        <input type="radio" bind:group={type} value="book" class="visually-hidden" /> Book / manga / audiobook
+        <input type="radio" bind:group={type} value="book" class="visually-hidden" /> Book / audiobook
+      </label>
+      <label class:on={type === 'manga'}>
+        <input type="radio" bind:group={type} value="manga" class="visually-hidden" /> Manga
       </label>
       <label class:on={type === 'fic'}>
         <input type="radio" bind:group={type} value="fic" class="visually-hidden" /> Fanfic (AO3)
       </label>
     </div>
+  {:else if bookLike}
+    <!-- A book can become manga and back: they keep the same details. -->
+    <div class="type-switch" role="radiogroup" aria-label="Type">
+      <label class:on={type === 'book'}>
+        <input type="radio" bind:group={type} value="book" class="visually-hidden" /> Book / audiobook
+      </label>
+      <label class:on={type === 'manga'}>
+        <input type="radio" bind:group={type} value="manga" class="visually-hidden" /> Manga
+      </label>
+    </div>
   {/if}
 
-  {#if type === 'book'}
-    <BookLookup onpick={(d) => applyDraft(d, isNew)} initial={isbn13} />
+  {#if bookLike}
+    <BookLookup onpick={picked} initial={isbn13} />
   {:else}
     <FicImport onimport={ficImported} />
   {/if}
@@ -488,7 +512,7 @@
       <input bind:value={title} required aria-invalid={!!errors.title} />
       {#if errors.title}<span class="error">{errors.title}</span>{/if}
     </label>
-    {#if type === 'book'}
+    {#if bookLike}
       <div class="grid-2">
         <label class="field">
           <span>Original title</span>
@@ -517,7 +541,7 @@
         <label class="label" for="f-lang">Language</label>
         <Combobox id="f-lang" options={languageOptions} value={language} onchange={(v) => (language = v)} placeholder="Choose…" />
       </div>
-      {#if type === 'book'}
+      {#if bookLike}
         <div class="field">
           <label class="label" for="f-olang">Original language (if translated)</label>
           <Combobox
@@ -549,7 +573,7 @@
     </div>
   </fieldset>
 
-  {#if type === 'book'}
+  {#if bookLike}
     <fieldset class="card stack">
       <legend>Edition</legend>
       <div class="grid-2">
@@ -557,7 +581,7 @@
           <span>Format</span>
           <select bind:value={format}>
             <option value="">—</option>
-            {#each FORMATS as fm (fm.value)}<option value={fm.value}>{fm.label}</option>{/each}
+            {#each FORMATS.filter((fm) => type !== 'manga' || fm.value !== 'audiobook') as fm (fm.value)}<option value={fm.value}>{fm.label}</option>{/each}
           </select>
         </label>
         <label class="field">
@@ -744,7 +768,7 @@
     {/if}
   </fieldset>
 
-  {#if type === 'book'}
+  {#if bookLike}
     <fieldset class="card stack">
       <legend>Purchases</legend>
       {#if purchases.length === 0}
@@ -863,7 +887,9 @@
 
   .type-switch {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    /* Two or three choices, side by side. */
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
     gap: 0.5rem;
   }
 

@@ -29,6 +29,7 @@
   /* charts (validated: categorical checks + contrast vs --surface) */
   --series-1: #35679f;
   --series-2: #a8653a;
+  --series-3: #9970c4; /* manga; validated with 1 and 2 (all pairs, CVD ≥ 8) */
   --chart-grid: #e1e3e4;
   --chart-axis: #c3c7ca;
   --chart-ink-muted: #656d74;
@@ -71,6 +72,7 @@
     --shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 2px 8px rgb(0 0 0 / 0.35);
     --series-1: #5f8fcb;
     --series-2: #c27c48;
+    --series-3: #8656a6;
     --chart-grid: #262a2e;
     --chart-axis: #3a4046;
     --chart-ink-muted: #838c94;
@@ -106,6 +108,7 @@
   --shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 2px 8px rgb(0 0 0 / 0.35);
   --series-1: #5f8fcb;
   --series-2: #c27c48;
+  --series-3: #8656a6;
   --chart-grid: #262a2e;
   --chart-axis: #3a4046;
   --chart-ink-muted: #838c94;

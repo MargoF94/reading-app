@@ -9,6 +9,7 @@
   import { formatShort, readingSpeed, timeStats } from '../lib/readingTime';
   import { library } from '../lib/store.svelte';
   import type { ItemType } from '../lib/types';
+  import { TYPES } from '../lib/constants';
   import { formatDate, formatMoney, formatNumber, normalize, today } from '../lib/util';
 
   // Filters live in the URL (?p=…&t=…&from=…&to=…) so Back keeps them.
@@ -18,7 +19,11 @@
     const p = q.get('p');
     return p === 'custom' || PRESETS.some((x) => x.id === p) ? (p as PresetId | 'custom') : 'this-year';
   });
-  const type = $derived<ItemType | undefined>(q.get('t') === 'book' || q.get('t') === 'fic' ? (q.get('t') as ItemType) : undefined);
+  const type = $derived<ItemType | undefined>(TYPES.find((t) => t.value === q.get('t'))?.value);
+  /** Showing this type (or all of them). */
+  const shows = (t: ItemType) => !type || type === t;
+  // Manga shows up in the totals and charts once there's any.
+  const hasManga = $derived(type === 'manga' || library.items.some((i) => i.type === 'manga'));
   const period = $derived<Period>(
     preset === 'custom'
       ? orderRange(q.get('from') || undefined, q.get('to') || undefined)
@@ -29,12 +34,13 @@
   }
   const stats = $derived(computeStats(library.data, library.settings, { period, type, today: today() }));
 
-  // Pies: books vs fics, and books by genre (each finished item counted once).
+  // Pies: books vs manga vs fics, and books (or manga) by genre (each finished item counted once).
   const PIE_COLORS = ['var(--pie-1)', 'var(--pie-2)', 'var(--pie-3)', 'var(--pie-4)'];
-  const finishedBooksInPeriod = $derived([...new Map(stats.finished.filter((f) => f.item.type === 'book').map((f) => [f.item.id, f.item])).values()]);
+  const genreType = $derived<ItemType>(type === 'manga' ? 'manga' : 'book');
+  const finishedBooksInPeriod = $derived([...new Map(stats.finished.filter((f) => f.item.type === genreType).map((f) => [f.item.id, f.item])).values()]);
   const allTimeBooks = $derived.by(() => {
     const ids = new Set(library.data.readings.filter((r) => !r.deleted && r.outcome === 'finished').map((r) => r.itemId));
-    return library.items.filter((i) => i.type === 'book' && ids.has(i.id));
+    return library.items.filter((i) => i.type === genreType && ids.has(i.id));
   });
   const genreSlices = $derived(
     genreShares(finishedBooksInPeriod, allTimeBooks, (id) => library.data.genres.find((g) => g.id === id && !g.deleted)?.name).map((g) => ({
@@ -85,8 +91,9 @@
 
   const finishedSeries = $derived.by(() => {
     const out: ColumnSeries[] = [];
-    if (type !== 'fic') out.push({ name: 'Books', color: 'var(--series-1)', values: stats.buckets.map((b) => b.books) });
-    if (type !== 'book') out.push({ name: 'Fics', color: 'var(--series-2)', values: stats.buckets.map((b) => b.fics) });
+    if (shows('book')) out.push({ name: 'Books', color: 'var(--series-1)', values: stats.buckets.map((b) => b.books) });
+    if (shows('manga') && hasManga) out.push({ name: 'Manga', color: 'var(--series-3)', values: stats.buckets.map((b) => b.manga) });
+    if (shows('fic')) out.push({ name: 'Fics', color: 'var(--series-2)', values: stats.buckets.map((b) => b.fics) });
     return out;
   });
   const labels = $derived(stats.buckets.map((b) => b.label));
@@ -143,10 +150,9 @@
       Custom dates
     </button>
   </div>
-  <select value={type ?? ''} onchange={(e) => router.setQuery({ t: e.currentTarget.value || undefined })} aria-label="Books or fics">
-    <option value="">Books &amp; fics</option>
-    <option value="book">Books only</option>
-    <option value="fic">Fics only</option>
+  <select value={type ?? ''} onchange={(e) => router.setQuery({ t: e.currentTarget.value || undefined })} aria-label="Books, manga or fics">
+    <option value="">Everything</option>
+    {#each TYPES as t (t.value)}<option value={t.value}>{t.plural} only</option>{/each}
   </select>
 </div>
 {#if preset === 'custom'}
@@ -160,10 +166,11 @@
 <GoalsCard {year} />
 
 <div class="tiles">
-  {#if type !== 'fic'}<StatTile label="Books finished" value={formatNumber(stats.finishedBooks)} />{/if}
-  {#if type !== 'book'}<StatTile label="Fics finished" value={formatNumber(stats.finishedFics)} />{/if}
+  {#if shows('book')}<StatTile label="Books finished" value={formatNumber(stats.finishedBooks)} />{/if}
+  {#if shows('manga') && hasManga}<StatTile label="Manga finished" value={formatNumber(stats.finishedManga)} />{/if}
+  {#if shows('fic')}<StatTile label="Fics finished" value={formatNumber(stats.finishedFics)} />{/if}
   <StatTile label="Words read" value={compact(stats.words)} sub={estimatedShare ? `≈ ${estimatedShare}% estimated` : ''} />
-  {#if type !== 'book'}
+  {#if shows('fic')}
     <StatTile
       label="Fics, in books"
       value="≈ {ficBooks >= 10 ? Math.round(ficBooks) : ficBooks.toFixed(1)}"
@@ -244,10 +251,11 @@
   {#if !type}
     <section class="card">
       <PieChart
-        title="Books and fics read"
+        title={hasManga ? 'Books, manga and fics read' : 'Books and fics read'}
         caption="Finished in this period."
         slices={[
           { label: 'Books', value: stats.finishedBooks, color: 'var(--series-1)' },
+          ...(hasManga ? [{ label: 'Manga', value: stats.finishedManga, color: 'var(--series-3)' }] : []),
           { label: 'Fics', value: stats.finishedFics, color: 'var(--series-2)' },
         ]}
         unit="finished"
@@ -257,10 +265,10 @@
   {#if type !== 'fic'}
     <section class="card">
       <PieChart
-        title="Books read by genre"
-        caption="Each book counts once, under its main (first) genre. Your 4 most-read genres keep their colors; the rest, and books without a genre, are Other."
+        title="{genreType === 'manga' ? 'Manga' : 'Books'} read by genre"
+        caption="Each {genreType === 'manga' ? 'volume' : 'book'} counts once, under its main (first) genre. Your 4 most-read genres keep their colors; the rest, and {genreType === 'manga' ? 'volumes' : 'books'} without a genre, are Other."
         slices={genreSlices}
-        unit="books"
+        unit={genreType === 'manga' ? 'volumes' : 'books'}
       />
     </section>
   {/if}
@@ -306,7 +314,7 @@
   {#if type !== 'fic' && stats.genres.length}
     <section class="card"><BarList title="Genres" rows={stats.genres} href={link('genres', 'genres')} /></section>
   {/if}
-  {#if type !== 'book' && stats.fandoms.length}
+  {#if shows('fic') && stats.fandoms.length}
     <section class="card"><BarList title="Fandoms" rows={stats.fandoms} href={link('fandoms')} /></section>
   {/if}
   <section class="card"><BarList title="Authors" rows={stats.authors} href={link('authors', 'authors')} /></section>

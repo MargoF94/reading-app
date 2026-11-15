@@ -137,22 +137,24 @@ export async function renderYearImage(year: number, stats: Stats, items: Item[])
   ctx.font = `600 64px Georgia, 'Iowan Old Style', serif`;
   ctx.fillText(String(year), W / 2, 175);
 
-  const total = stats.finishedBooks + stats.finishedFics;
+  const total = stats.finishedBooks + stats.finishedManga + stats.finishedFics;
   ctx.font = `700 150px ${sans}`;
   ctx.fillText(String(total), W / 2, 335);
   ctx.fillStyle = text2;
   ctx.font = `400 32px ${sans}`;
-  ctx.fillText(total === 1 ? 'book or fic finished' : 'books and fics finished', W / 2, 385);
+  const what = stats.finishedManga ? ['book, manga or fic', 'books, manga and fics'] : ['book or fic', 'books and fics'];
+  ctx.fillText(`${total === 1 ? what[0] : what[1]} finished`, W / 2, 385);
 
   // Tiles.
   const tiles: [string, string][] = [
     ['Books', String(stats.finishedBooks)],
+    ...(stats.finishedManga ? [['Manga', String(stats.finishedManga)] as [string, string]] : []),
     ['Fics', String(stats.finishedFics)],
     ['Pages', compact(stats.pages)],
     ['Words', compact(stats.words)],
   ];
   const gap = 20;
-  const tw = (W - PAD * 2 - gap * 3) / 4;
+  const tw = (W - PAD * 2 - gap * (tiles.length - 1)) / tiles.length;
   tiles.forEach(([label, value], i) => {
     const x = PAD + i * (tw + gap);
     ctx.fillStyle = surface;

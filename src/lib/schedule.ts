@@ -2,6 +2,7 @@
 // release notices for Home, reminders and export to phone calendars.
 // Dates are "YYYY-MM-DD" and times "HH:MM" in the reader's local time.
 import type { Item, Purchase, Reading, ReadingSession, Repeat } from './types';
+import { isBookLike } from './types';
 import { toDateString } from './util';
 
 // ---- dates ------------------------------------------------------------------------
@@ -132,14 +133,14 @@ export interface Release {
 /** Books coming out on a known day between two dates. */
 export function releases(items: Item[], from: string, to: string): Release[] {
   return items
-    .filter((i) => i.type === 'book' && isFullDate(i.book?.publicationDate) && i.book!.publicationDate! >= from && i.book!.publicationDate! <= to)
+    .filter((i) => isBookLike(i.type) && isFullDate(i.book?.publicationDate) && i.book!.publicationDate! >= from && i.book!.publicationDate! <= to)
     .map((item) => ({ item, date: item.book!.publicationDate! }))
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /** Books coming out some time in a month (only the month is known). */
 export function monthReleases(items: Item[], month: string): Release[] {
-  return items.filter((i) => i.type === 'book' && i.book?.publicationDate === month).map((item) => ({ item, date: month }));
+  return items.filter((i) => isBookLike(i.type) && i.book?.publicationDate === month).map((item) => ({ item, date: month }));
 }
 
 /** Not out yet, as of today. */

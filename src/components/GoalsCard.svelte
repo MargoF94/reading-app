@@ -1,17 +1,26 @@
 <script lang="ts">
+  import { TYPES } from '../lib/constants';
   import { finishedInYear, goalPace } from '../lib/stats';
   import { library } from '../lib/store.svelte';
+  import type { Goal, ItemType } from '../lib/types';
   import { parseNumber, today } from '../lib/util';
   import Meter from './charts/Meter.svelte';
 
-  // Yearly goals: books and fics separately, plus their combined total.
+  // Yearly goals: books, manga and fics separately, plus their combined total.
   let { year, compact = false }: { year: number; compact?: boolean } = $props();
+
+  const FIELD: Record<ItemType, 'books' | 'manga' | 'fics'> = { book: 'books', manga: 'manga', fic: 'fics' };
+  const PLACEHOLDER: Record<ItemType, string> = { book: 'e.g. 50', manga: 'e.g. 40', fic: 'e.g. 30' };
 
   const goal = $derived(library.goal(year));
   const done = $derived(finishedInYear(library.data, year));
   let editing = $state(false);
-  let books = $state('');
-  let fics = $state('');
+  let inputs = $state<Record<ItemType, string>>({ book: '', manga: '', fic: '' });
+
+  /** Each type with a goal: its target and how many are finished. */
+  const meters = $derived(
+    TYPES.filter((t) => goal?.[FIELD[t.value]]).map((t) => ({ ...t, target: goal![FIELD[t.value]]!, count: done[t.value] })),
+  );
 
   function pace(target: number, count: number): string {
     const { ahead } = goalPace(target, count, year, today());
@@ -23,56 +32,52 @@
   }
 
   function edit() {
-    books = goal?.books?.toString() ?? '';
-    fics = goal?.fics?.toString() ?? '';
+    for (const t of TYPES) inputs[t.value] = goal?.[FIELD[t.value]]?.toString() ?? '';
     editing = true;
   }
 
   async function save(e: Event) {
     e.preventDefault();
-    const b = parseNumber(books);
-    const f = parseNumber(fics);
-    await library.saveGoal(year, {
-      books: b && b > 0 ? Math.round(b) : undefined,
-      fics: f && f > 0 ? Math.round(f) : undefined,
-    });
+    const patch: Partial<Pick<Goal, 'books' | 'manga' | 'fics'>> = {};
+    for (const t of TYPES) {
+      const n = parseNumber(inputs[t.value]);
+      patch[FIELD[t.value]] = n && n > 0 ? Math.round(n) : undefined;
+    }
+    await library.saveGoal(year, patch);
     editing = false;
   }
 
-  const hasGoal = $derived(!!(goal?.books || goal?.fics));
+  const together = $derived(
+    meters.length > 1 ? { target: meters.reduce((s, m) => s + m.target, 0), count: meters.reduce((s, m) => s + m.count, 0) } : undefined,
+  );
 </script>
 
 <section class="card goals" class:compact>
   <div class="head">
     <h2>{year} reading goal</h2>
     {#if !editing}
-      <button type="button" class="btn ghost small" onclick={edit}>{hasGoal ? 'Edit' : 'Set a goal'}</button>
+      <button type="button" class="btn ghost small" onclick={edit}>{meters.length ? 'Edit' : 'Set a goal'}</button>
     {/if}
   </div>
   {#if editing}
     <form class="edit" onsubmit={save}>
-      <label class="field"><span>Books</span><input inputmode="numeric" bind:value={books} placeholder="e.g. 50" /></label>
-      <label class="field"><span>Fics</span><input inputmode="numeric" bind:value={fics} placeholder="e.g. 30" /></label>
+      {#each TYPES as t (t.value)}
+        <label class="field"><span>{t.plural}</span><input inputmode="numeric" bind:value={inputs[t.value]} placeholder={PLACEHOLDER[t.value]} /></label>
+      {/each}
       <div class="row">
         <button class="btn primary small">Save</button>
         <button type="button" class="btn small" onclick={() => (editing = false)}>Cancel</button>
       </div>
     </form>
-  {:else if hasGoal}
-    <div class="meters">
-      {#if goal?.books}<Meter label="Books" done={done.books} goal={goal.books} note={pace(goal.books, done.books)} />{/if}
-      {#if goal?.fics}<Meter label="Fics" done={done.fics} goal={goal.fics} note={pace(goal.fics, done.fics)} />{/if}
-      {#if goal?.books && goal?.fics}
-        <Meter
-          label="Together"
-          done={done.books + done.fics}
-          goal={goal.books + goal.fics}
-          note={pace(goal.books + goal.fics, done.books + done.fics)}
-        />
+  {:else if meters.length}
+    <div class="meters" style:--n={meters.length + (together ? 1 : 0)}>
+      {#each meters as m (m.value)}<Meter label={m.plural} done={m.count} goal={m.target} note={pace(m.target, m.count)} />{/each}
+      {#if together}
+        <Meter label="Together" done={together.count} goal={together.target} note={pace(together.target, together.count)} />
       {/if}
     </div>
   {:else}
-    <p class="small muted">No goal yet. Finished books and fics count towards it automatically.</p>
+    <p class="small muted">No goal yet. Finished books, manga and fics count towards it automatically.</p>
   {/if}
 </section>
 
@@ -97,7 +102,7 @@
 
   @media (min-width: 700px) {
     .meters {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(var(--n), minmax(0, 1fr));
     }
   }
 

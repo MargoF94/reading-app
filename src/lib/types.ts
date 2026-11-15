@@ -10,9 +10,13 @@ export interface BaseRecord {
   deleted?: boolean;
 }
 
-export type ItemType = 'book' | 'fic';
+export type ItemType = 'book' | 'manga' | 'fic';
 
-export type BookFormat = 'hardcover' | 'paperback' | 'ebook' | 'manga' | 'audiobook' | 'other';
+/** Books and manga: published volumes, with their publishing details in `book`. */
+export const isBookLike = (type: ItemType): boolean => type !== 'fic';
+
+/** How a book or manga volume is published. (Manga was a format before it was a type of its own.) */
+export type BookFormat = 'hardcover' | 'paperback' | 'ebook' | 'audiobook' | 'other';
 
 /** Shown status. Derived from read-throughs, never stored. */
 export type Status = 'want-to-read' | 'currently-reading' | 'on-hold' | 'read' | 'dnf';
@@ -65,6 +69,7 @@ export interface FicDetails {
   statsDate?: string; // when the snapshot above was taken
 }
 
+/** A book's or manga volume's publishing details. */
 export interface BookDetails {
   isbn13?: string;
   isbn10?: string;
@@ -227,6 +232,7 @@ export interface ReadingList extends NamedRecord {
 export interface Goal extends BaseRecord {
   year: number;
   books?: number;
+  manga?: number;
   fics?: number;
 }
 
@@ -372,7 +378,7 @@ export const COLLECTION_NAMES: CollectionName[] = [
 /** Shape of library.json. */
 export interface LibraryFile extends Collections {
   app: 'reading-app';
-  /** 2 added `vocabulary`, 3 `schedule`, 4 `quotes`, 5 `readingTime`, 6 `characters`; older app versions refuse newer files instead of dropping data. */
-  schema: 6;
+  /** 2 added `vocabulary`, 3 `schedule`, 4 `quotes`, 5 `readingTime`, 6 `characters`, 7 the `manga` type; older app versions refuse newer files instead of dropping data. */
+  schema: 7;
   savedAt: string;
 }

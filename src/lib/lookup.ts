@@ -66,10 +66,19 @@ const OL_LANG: Record<string, string> = {
   swe: 'sv',
 };
 
+/** Subjects and categories that mean manga (Open Library, Google Books). */
+export const isMangaSubject = (s: unknown): boolean => typeof s === 'string' && /\bmanga\b/i.test(s);
+
+/** A Japanese book code (C-code) for a comic: form 9 (コミック) or subject 79 (コミックス・劇画). */
+export function isComicCcode(code: unknown): boolean {
+  const d = typeof code === 'string' ? code.trim().replace(/^C/i, '') : '';
+  return /^\d{4}$/.test(d) && (d[1] === '9' || d.endsWith('79'));
+}
+
 function olDraft(v: Obj, isbn: string): ItemDraft {
   const ids = parseIsbn(v.identifiers?.isbn_13?.[0] ?? v.identifiers?.isbn_10?.[0] ?? isbn);
   return {
-    type: 'book',
+    type: (v.subjects ?? []).some((x: Obj) => isMangaSubject(x?.name)) ? 'manga' : 'book',
     source: 'Open Library',
     title: v.title,
     authors: (v.authors ?? []).map((a: Obj) => a.name).filter(Boolean),
@@ -128,7 +137,7 @@ function googleDraft(v: Obj): ItemDraft {
   const isbn = parseIsbn(ids.find((i) => i.type === 'ISBN_13')?.identifier ?? ids.find((i) => i.type === 'ISBN_10')?.identifier ?? '');
   const thumb: string | undefined = info.imageLinks?.thumbnail ?? info.imageLinks?.smallThumbnail;
   return {
-    type: 'book',
+    type: (info.categories ?? []).some(isMangaSubject) ? 'manga' : 'book',
     source: 'Google Books',
     title: info.title,
     authors: info.authors ?? [],
@@ -158,13 +167,15 @@ async function openBd(isbn: string, signal?: AbortSignal): Promise<ItemDraft | u
   const data = (await getJson(`https://api.openbd.jp/v1/get?isbn=${isbn}`, signal)) as (Obj | null)[];
   const s = data?.[0]?.summary;
   if (!s?.title) return undefined;
+  const subjects = [data?.[0]?.onix?.DescriptiveDetail?.Subject ?? []].flat() as Obj[];
+  const ccode = subjects.find((x) => String(x?.SubjectSchemeIdentifier) === '78')?.SubjectCode;
   const authors = String(s.author ?? '')
     .split(/\s+/)
     .filter((a) => /／?(著|作|文|原作)$/.test(a) || !/／/.test(a))
     .map((a) => a.replace(/／.*$/, '').replace(/,/g, ''))
     .filter(Boolean);
   return {
-    type: 'book',
+    type: isComicCcode(ccode) ? 'manga' : 'book',
     source: 'openBD',
     title: [s.title, s.volume].filter(Boolean).join(' '),
     authors,
@@ -194,6 +205,7 @@ export function mergeDrafts(drafts: (ItemDraft | undefined)[]): ItemDraft | unde
     }
   }
   out.source = [...new Set(list.map((d) => d.source))].join(' + ');
+  if (list.some((d) => d.type === 'manga')) out.type = 'manga';
   return out;
 }
 

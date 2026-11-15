@@ -55,9 +55,9 @@ describe('lengths', () => {
     expect(itemLength(fic('j', 25000, { language: 'ja' }), settings)).toMatchObject({ words: 10000, wordsEstimated: true });
     expect(itemLength(fic('e', 25000), settings)).toMatchObject({ words: 25000, wordsEstimated: false });
     expect(itemLength(book('au', {}, { format: 'audiobook', durationMinutes: 120 }), settings)).toMatchObject({ words: 18000, minutes: 120 });
-    expect(itemLength(book('m', {}, { format: 'manga', pageCount: 200 }), settings)).toMatchObject({ pages: 200 });
-    expect(itemLength(book('m', {}, { format: 'manga', pageCount: 200 }), settings).words).toBeUndefined();
-    expect(itemLength(book('m', {}, { format: 'manga', pageCount: 200 }), { ...settings, mangaCountsWords: true }).words).toBe(55000);
+    expect(itemLength(book('m', { type: 'manga' }, { pageCount: 200 }), settings)).toMatchObject({ pages: 200 });
+    expect(itemLength(book('m', { type: 'manga' }, { pageCount: 200 }), settings).words).toBeUndefined();
+    expect(itemLength(book('m', { type: 'manga' }, { pageCount: 200 }), { ...settings, mangaCountsWords: true }).words).toBe(55000);
   });
 });
 

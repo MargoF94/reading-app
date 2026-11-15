@@ -4,6 +4,7 @@
   import { entryLabel } from '../lib/reading';
   import { library } from '../lib/store.svelte';
   import type { BookFormat, Item, ProgressEntry, Reading, ReadingOutcome } from '../lib/types';
+  import { isBookLike } from '../lib/types';
   import { formatDate } from '../lib/util';
   import Icon from './Icon.svelte';
   import Modal from './Modal.svelte';
@@ -98,7 +99,7 @@
           {#each OUTCOMES as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
         </select>
       </label>
-      {#if item.type === 'book'}
+      {#if isBookLike(item.type)}
         <label class="field">
           <span>Format</span>
           <select bind:value={format}>

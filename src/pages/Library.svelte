@@ -2,7 +2,7 @@
   import BrowseNav from '../components/BrowseNav.svelte';
   import Icon from '../components/Icon.svelte';
   import ItemCard from '../components/ItemCard.svelte';
-  import { FORMATS, LANGUAGE_NAME, STATUSES } from '../lib/constants';
+  import { FORMATS, LANGUAGE_NAME, STATUSES, TYPES } from '../lib/constants';
   import { kindleStatus } from '../lib/kindle.svelte';
   import { lastFinishDate } from '../lib/reading';
   import { router } from '../lib/router.svelte';
@@ -98,7 +98,7 @@
     return list.sort(by[sort] ?? by.added);
   });
 
-  // One-tap shelves; counts follow the Books/Fics choice.
+  // One-tap shelves; counts follow the Books/Manga/Fics choice.
   const SHELVES = [
     { value: 'want-to-read', label: 'Want to Read', short: 'Want' },
     { value: 'currently-reading', label: 'Currently Reading', short: 'Reading' },
@@ -172,7 +172,7 @@
 </div>
 
 <div class="type-tabs" role="group" aria-label="Type">
-  {#each [['', 'All'], ['book', 'Books'], ['fic', 'Fics']] as [v, label] (v)}
+  {#each [['', 'All'], ...TYPES.map((t) => [t.value, t.plural])] as [v, label] (v)}
     <button type="button" class="chip" class:accent={type === v} onclick={() => router.setQuery({ type: v || undefined })}>
       {label}
     </button>

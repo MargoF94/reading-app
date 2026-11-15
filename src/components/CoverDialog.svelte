@@ -8,6 +8,7 @@
   import { sync } from '../lib/sync.svelte';
   import { toasts } from '../lib/toast.svelte';
   import type { Item } from '../lib/types';
+  import { isBookLike } from '../lib/types';
   import Cover from './Cover.svelte';
   import CoverMaker from './CoverMaker.svelte';
   import Icon from './Icon.svelte';
@@ -130,7 +131,7 @@
           <Icon name="upload" size={18} /> Upload a photo
         </button>
         {@render epubOption()}
-        {#if item.type === 'book'}
+        {#if isBookLike(item.type)}
           <button type="button" class="btn" disabled={busy} onclick={findOnline}>
             <Icon name="search" size={18} /> {busy && !searched ? 'Searching…' : 'Find covers online'}
           </button>

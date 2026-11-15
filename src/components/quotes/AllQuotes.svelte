@@ -29,7 +29,7 @@
 {#if library.quotes.length === 0}
   <div class="empty">
     <p>No quotes yet.</p>
-    <p class="small">Open a book or fic and use <strong>Add a quote</strong> in its Quotes section.</p>
+    <p class="small">Open a book, manga or fic and use <strong>Add a quote</strong> in its Quotes section.</p>
   </div>
 {:else}
   <div class="filters">

@@ -22,7 +22,7 @@
     return [...ys].sort((a, b) => b - a);
   });
   const finishedItems = $derived([...new Map(stats.finished.map((f) => [f.item.id, f.item])).values()]);
-  const total = $derived(stats.finishedBooks + stats.finishedFics);
+  const total = $derived(stats.finishedBooks + stats.finishedManga + stats.finishedFics);
   const favourites = $derived(
     finishedItems.filter((i) => i.rating && i.rating >= 4.5).sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0)).slice(0, 6),
   );
@@ -75,7 +75,7 @@
   <h1>{year}</h1>
   <p class="big">{formatNumber(total)}</p>
   <p class="big-label">
-    {total === 1 ? 'book or fic' : 'books and fics'} finished{year === new Date().getFullYear() ? ' so far' : ''}
+    {stats.finishedManga ? (total === 1 ? 'book, manga or fic' : 'books, manga and fics') : total === 1 ? 'book or fic' : 'books and fics'} finished{year === new Date().getFullYear() ? ' so far' : ''}
   </p>
   {#if total}
     <button type="button" class="btn save" disabled={making} onclick={saveImage}>
@@ -89,6 +89,7 @@
 {:else}
   <div class="tiles">
     <StatTile label="Books" value={formatNumber(stats.finishedBooks)} />
+    {#if stats.finishedManga}<StatTile label="Manga" value={formatNumber(stats.finishedManga)} />{/if}
     <StatTile label="Fics" value={formatNumber(stats.finishedFics)} />
     <StatTile label="Pages" value={compact(stats.pages)} />
     <StatTile label="Words" value={compact(stats.words)} />
@@ -141,6 +142,7 @@
         labels={stats.buckets.map((b) => b.label)}
         series={[
           { name: 'Books', color: 'var(--series-1)', values: stats.buckets.map((b) => b.books) },
+          ...(stats.finishedManga ? [{ name: 'Manga', color: 'var(--series-3)', values: stats.buckets.map((b) => b.manga) }] : []),
           { name: 'Fics', color: 'var(--series-2)', values: stats.buckets.map((b) => b.fics) },
         ]}
       />

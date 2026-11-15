@@ -1,6 +1,7 @@
 <script lang="ts">
   import { library } from '../../lib/store.svelte';
   import type { Item, VocabWord } from '../../lib/types';
+  import { TYPE_NOUN } from '../../lib/constants';
   import Icon from '../Icon.svelte';
   import WordEntry from './WordEntry.svelte';
   import WordForm from './WordForm.svelte';
@@ -54,7 +55,7 @@
       {/each}
     </ol>
   {:else if editing !== 'new'}
-    <p class="muted small">No words yet. Add new words you meet in this {item.type === 'fic' ? 'fic' : 'book'} to look up and remember them.</p>
+    <p class="muted small">No words yet. Add new words you meet in this {TYPE_NOUN[item.type]} to look up and remember them.</p>
   {/if}
 </section>
 

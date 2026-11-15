@@ -20,6 +20,7 @@
   import { sync } from '../lib/sync.svelte';
   import { toasts } from '../lib/toast.svelte';
   import type { Item, StoredFile } from '../lib/types';
+  import { TYPE_NOUN } from '../lib/constants';
   import { formatDate } from '../lib/util';
   import Icon from './Icon.svelte';
 
@@ -325,7 +326,7 @@
 
   {#if !sync.config}
     <p class="small muted">
-      {files.length ? 'Connect' : 'To keep EPUBs of this ' + (item.type === 'fic' ? 'fic' : 'book') + ' in your private repository, connect'}
+      {files.length ? 'Connect' : 'To keep EPUBs of this ' + TYPE_NOUN[item.type] + ' in your private repository, connect'}
       sync in <a href="#/settings">Settings</a>{files.length ? ' to download these files on this device.' : '.'}
     </p>
   {:else if !files.length && !uploading.length}

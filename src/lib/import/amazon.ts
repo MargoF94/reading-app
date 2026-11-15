@@ -124,13 +124,16 @@ export function amazonImage(url: string | undefined): string | undefined {
   return url.replace(/\._[^/]*_\.(jpe?g|png|gif)$/i, '.$1');
 }
 
-function amazonFormat(fmt: string, crumbs: string, title: string): BookFormat | undefined {
-  const all = `${fmt} ${crumbs} ${title}`;
-  if (/コミック|マンガ|漫画|comics?\b|manga/i.test(all) && !/文庫|小説|novel/i.test(fmt)) return 'manga';
+/** Comics and manga, going by the format, the category trail or the title. */
+function amazonManga(fmt: string, crumbs: string, title: string): boolean {
+  return /コミック|マンガ|漫画|comics?\b|manga/i.test(`${fmt} ${crumbs} ${title}`) && !/文庫|小説|novel/i.test(fmt);
+}
+
+function amazonFormat(fmt: string): BookFormat | undefined {
   if (/audible|オーディオ|audio/i.test(fmt)) return 'audiobook';
   if (/kindle|電子書籍|ebook/i.test(fmt)) return 'ebook';
   if (/ハードカバー|hardcover/i.test(fmt)) return 'hardcover';
-  if (/文庫|新書|単行本|ソフトカバー|ペーパーバック|paperback|tankobon/i.test(fmt)) return 'paperback';
+  if (/文庫|新書|単行本|ソフトカバー|ペーパーバック|paperback|tankobon|コミック/i.test(fmt)) return 'paperback';
   return undefined;
 }
 
@@ -195,7 +198,8 @@ export function parseAmazonPayload(p: AmazonPayload): ItemDraft {
   }
   const lang = detail(det, '言語', 'language')?.toLowerCase().trim();
   draft.language = (lang && (LANG[lang] ?? LANG[lang.split(/\s/)[0]])) ?? (/amazon\.co\.jp/.test(p.u) ? 'ja' : undefined);
-  book.format = amazonFormat(p.fmt ?? '', p.crumbs ?? '', t);
+  book.format = amazonFormat(p.fmt ?? '');
+  if (amazonManga(p.fmt ?? '', p.crumbs ?? '', t)) draft.type = 'manga';
   return draft;
 }
 

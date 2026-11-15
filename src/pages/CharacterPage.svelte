@@ -3,7 +3,8 @@
   import Cover from '../components/Cover.svelte';
   import Icon from '../components/Icon.svelte';
   import PictureGallery from '../components/images/PictureGallery.svelte';
-  import { appearances, charKey, characterForTag, splitNames, tagName } from '../lib/characters';
+  import { appearancesSentence, charKey, characterForTag, splitNames, tagName } from '../lib/characters';
+  import { TYPE_LABEL } from '../lib/constants';
   import { STATUS_LABEL } from '../lib/constants';
   import { router } from '../lib/router.svelte';
   import { library } from '../lib/store.svelte';
@@ -20,8 +21,9 @@
   const entry = $derived(
     library.characterIndex.find((e) => (record ? e.character?.id === record.id : e.key === charKey(tag ?? ''))),
   );
+  const TYPE_ORDER = { book: 0, manga: 1, fic: 2 } as const;
   const items = $derived(
-    [...(entry?.items ?? [])].sort((a, b) => (a.type === b.type ? collator.compare(a.title, b.title) : a.type === 'book' ? -1 : 1)),
+    [...(entry?.items ?? [])].sort((a, b) => TYPE_ORDER[a.type] - TYPE_ORDER[b.type] || collator.compare(a.title, b.title)),
   );
 
   // A tag link for a character that now has a page goes to that page.
@@ -111,7 +113,7 @@
       <div class="who">
         <h1>{name}</h1>
         {#if record?.altNames.length}<p class="muted alt">also: {record.altNames.join(' · ')}</p>{/if}
-        <p class="small">In {appearances(entry?.books ?? 0, entry?.fics ?? 0).replace(' · ', ' and ')}</p>
+        <p class="small">In {appearancesSentence(entry ?? { books: 0, manga: 0, fics: 0 })}</p>
       </div>
     </header>
     {#if record?.note}<p class="note">{record.note}</p>{/if}
@@ -139,7 +141,7 @@
               <span class="body">
                 <strong>{it.title}</strong>
                 <span class="small muted">
-                  {it.type === 'fic' ? `Fic · ${it.fic?.fandoms[0] ?? 'AO3'}` : `Book${library.authorNames(it) ? ` · ${library.authorNames(it)}` : ''}`}
+                  {it.type === 'fic' ? `Fic · ${it.fic?.fandoms[0] ?? 'AO3'}` : `${TYPE_LABEL[it.type]}${library.authorNames(it) ? ` · ${library.authorNames(it)}` : ''}`}
                 </span>
               </span>
               <span class="small muted status">{statusText(it.id)}</span>
