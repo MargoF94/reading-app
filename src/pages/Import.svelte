@@ -3,6 +3,7 @@
   import GoodreadsImport from '../components/GoodreadsImport.svelte';
   import Icon from '../components/Icon.svelte';
   import { attachDraftFile, saveDraft, type ItemDraft } from '../lib/drafts';
+  import { asEpubIfAo3 } from '../lib/import/ao3Epub';
   import {
     amazonBookmarklet,
     ao3Bookmarklet,
@@ -56,7 +57,9 @@
     if (!file) return;
     pageError = '';
     try {
-      open(await draftFromFile(file), file);
+      const draft = await draftFromFile(file);
+      // An AO3 work saved as HTML comes along as an EPUB made from it.
+      open(draft, draft.type === 'fic' ? await asEpubIfAo3(file) : file);
     } catch (err) {
       pageError = err instanceof Error ? err.message : String(err);
     } finally {
@@ -95,7 +98,8 @@
     <p class="small" style="margin:0">
       An AO3 fic (AO3’s <strong>Download → EPUB</strong> or <strong>HTML</strong>, or its page saved from the browser) or
       a saved Goodreads or Amazon book page. The details open in the add form so you can check them before saving. If it’s already in your library (for
-      example a work-in-progress fic with new chapters), its details are updated instead.
+      example a work-in-progress fic with new chapters), its details are updated instead. An AO3 fic saved as HTML is made into an EPUB, to read here or
+      send to your Kindle.
     </p>
     <div>
       <button type="button" class="btn" onclick={() => fileInput?.click()}>

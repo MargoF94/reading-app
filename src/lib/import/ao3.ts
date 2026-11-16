@@ -50,7 +50,8 @@ function findWorkId(doc: Document, hint?: string): string | undefined {
 }
 
 export function isAo3Document(doc: Document): boolean {
-  return !!doc.querySelector('dl.work.meta') || /Archive of Our Own/i.test(textOf(doc.querySelector('#preface .message, title')));
+  // (Each on its own: a selector list finds the <title> first, and an AO3 download's title doesn't say AO3.)
+  return !!doc.querySelector('dl.work.meta') || [doc.querySelector('#preface .message'), doc.querySelector('title')].some((el) => /Archive of Our Own/i.test(textOf(el)));
 }
 
 /** Parses a work page / download file. Throws if no work details are found. */

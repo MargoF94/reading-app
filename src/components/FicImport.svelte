@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ItemDraft } from '../lib/drafts';
   import { draftFromFile } from '../lib/import/payload';
+  import { ao3EpubFromFile } from '../lib/import/ao3Epub';
   import Icon from './Icon.svelte';
 
   // Reads an AO3 EPUB or HTML download (or a saved page) and hands the fic's details over.
@@ -16,8 +17,11 @@
     try {
       const draft = await draftFromFile(file);
       if (draft.type !== 'fic') throw new Error('That file is a book page, not an AO3 fic.');
-      onimport(draft, file);
-      message = `Filled in from the AO3 ${/\.epub$/i.test(file.name) ? 'EPUB' : 'page'}. Check the details below.`;
+      const epub = /\.epub$/i.test(file.name) ? undefined : await ao3EpubFromFile(file).catch(() => undefined);
+      onimport(draft, epub ?? file);
+      message = /\.epub$/i.test(file.name)
+        ? 'Filled in from the AO3 EPUB. Check the details below.'
+        : `Filled in from the AO3 page${epub ? `, and made “${epub.name}” from it to read here` : ''}. Check the details below.`;
     } catch (err) {
       message = err instanceof Error ? err.message : String(err);
     } finally {
@@ -32,7 +36,7 @@
       <span class="label">Fill in from AO3</span>
       <p class="small muted">
         On AO3, open the fic and use <strong>Download → EPUB</strong> or <strong>HTML</strong>, or save the page from
-        your browser. Then choose the file. The <a href="#/import">AO3 bookmarklet</a> does it in one click.
+        your browser. Then choose the file; an HTML file is made into an EPUB too. The <a href="#/import">AO3 bookmarklet</a> does it in one click.
       </p>
     </div>
     <button type="button" class="btn" onclick={() => input?.click()}>

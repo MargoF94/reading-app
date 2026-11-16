@@ -10,6 +10,7 @@
     uploadItemFile,
   } from '../lib/itemFiles';
   import { draftFromEpub } from '../lib/import/epub';
+  import { asEpubIfAo3 } from '../lib/import/ao3Epub';
   import { ficUpdateFromDraft, type FieldChange } from '../lib/ficUpdate';
   import type { Item as ItemT } from '../lib/types';
   import { deviceFiles } from '../lib/deviceFiles.svelte';
@@ -44,9 +45,11 @@
     if (input) input.value = '';
     const cfg = sync.config;
     if (!cfg || !list.length) return;
-    for (const file of list) {
-      uploading = [...uploading, file.name];
+    for (const picked of list) {
+      uploading = [...uploading, picked.name];
       try {
+        // An AO3 work saved as HTML is kept as an EPUB made from it.
+        const file = await asEpubIfAo3(picked);
         // The fic's own cover goes into its EPUBs.
         const covered = await withItemCover(current(), file);
         const rec = { ...(await uploadItemFile(cfg, current(), covered.file)), cover: covered.cover };
@@ -54,11 +57,11 @@
         if (isEpub(rec)) await deviceFiles.keep(rec, covered.file).catch(() => {});
         const fresh = current();
         await library.saveItem({ ...fresh, files: [...(fresh.files ?? []), rec] });
-        toasts.show(`Saved “${file.name}” to your repository.`);
+        toasts.show(file === picked ? `Saved “${file.name}” to your repository.` : `Made “${file.name}” from the AO3 page and saved it to your repository.`);
       } catch (err) {
         toasts.show(err instanceof Error ? err.message : String(err), 'error');
       } finally {
-        uploading = uploading.filter((n) => n !== file.name);
+        uploading = uploading.filter((n) => n !== picked.name);
       }
     }
   }
@@ -119,10 +122,11 @@
   }
 
   async function newerPicked(e: Event) {
-    const file = (e.currentTarget as HTMLInputElement).files?.[0];
+    const picked = (e.currentTarget as HTMLInputElement).files?.[0];
     if (newerInput) newerInput.value = '';
     const f = newerFor;
-    if (!file || !f) return;
+    if (!picked || !f) return;
+    const file = await asEpubIfAo3(picked);
     let changes: FieldChange[] = [];
     let patch: Partial<ItemT> = {};
     if (item.type === 'fic') {
@@ -198,8 +202,8 @@
       </button>
     {/if}
   </div>
-  <input bind:this={input} type="file" accept=".epub,application/epub+zip,.pdf,.cbz,.zip,.mobi,.azw3,.txt" multiple hidden onchange={upload} />
-  <input bind:this={newerInput} type="file" accept=".epub,application/epub+zip" hidden onchange={newerPicked} />
+  <input bind:this={input} type="file" accept=".epub,application/epub+zip,.html,.htm,text/html,.pdf,.cbz,.zip,.mobi,.azw3,.txt" multiple hidden onchange={upload} />
+  <input bind:this={newerInput} type="file" accept=".epub,application/epub+zip,.html,.htm,text/html" hidden onchange={newerPicked} />
 
   {#if files.length}
     <ul class="files">
