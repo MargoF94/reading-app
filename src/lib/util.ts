@@ -95,13 +95,6 @@ export function songUrl(input: string): string | undefined {
   }
 }
 
-/** Stable colour for generated covers and chips. */
-export function hashHue(text: string): number {
-  let h = 0;
-  for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) >>> 0;
-  return h % 360;
-}
-
 export function plural(n: number, one: string, many = one + 's'): string {
   return `${formatNumber(n)} ${n === 1 ? one : many}`;
 }
