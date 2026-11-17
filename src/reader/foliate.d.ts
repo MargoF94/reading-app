@@ -38,6 +38,8 @@ declare module 'foliate-js/view.js' {
   export interface Renderer extends HTMLElement {
     page: number;
     pages: number;
+    /** On the last page of the last chapter. */
+    readonly atEnd: boolean;
     setStyles(css: string): void;
     /** The chapter laid out now, with its overlay for highlights. */
     getContents(): { index: number; doc?: Document; overlayer?: Overlay }[];

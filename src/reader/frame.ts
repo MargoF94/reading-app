@@ -350,6 +350,7 @@ function onRelocate(d: RelocateDetail) {
         .trim()
         .slice(0, 120) || undefined,
     bookmark: bookmarkOn(d.cfi),
+    end: d.fraction >= 0.995 || r?.atEnd === true,
   });
 }
 

@@ -205,7 +205,13 @@
 
 <div class="toasts" aria-live="polite">
   {#each toasts.list as t (t.id)}
-    <div class="toast {t.kind}">{t.text}</div>
+    <div class="toast {t.kind}">
+      <span>{t.text}</span>
+      {#if t.action}
+        {@const action = t.action}
+        <button type="button" class="toast-action" onclick={() => (toasts.dismiss(t.id), action.run())}>{action.label}</button>
+      {/if}
+    </div>
   {/each}
 </div>
 
@@ -374,6 +380,28 @@
     border-radius: var(--radius-sm);
     box-shadow: var(--shadow);
     font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .toast span {
+    flex: 1;
+  }
+
+  .toast-action {
+    pointer-events: auto;
+    flex: none;
+    background: none;
+    border: none;
+    padding: 0.25rem 0.5rem;
+    margin: -0.25rem -0.5rem -0.25rem 0;
+    color: inherit;
+    font: inherit;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+    cursor: pointer;
   }
 
   .toast.error {

@@ -195,6 +195,8 @@ export type FromFrame =
       bookmark?: string;
       /** Location numbers through the whole book (like a Kindle's). */
       location?: { current: number; total: number };
+      /** On the book's last page (a short book's last page can start before 99.5%). */
+      end?: boolean;
     }
   /** A highlighted quote was tapped. */
   | { type: 'annotation'; cfi: string }

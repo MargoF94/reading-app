@@ -91,10 +91,12 @@
   let frameReady = false;
   let file: File | null = null;
   let sent = false;
-  let pending: { cfi: string; fraction: number } | null = null;
+  let pending: { cfi: string; fraction: number; end: boolean } | null = null;
 
   const colors = $derived(THEME_COLORS[prefs.theme]);
-  const percent = $derived(percentOf(dragging ?? loc.fraction));
+  // On the last page it's 100%, as on a Kindle, even when that page starts a little before.
+  let atEnd = $state(false);
+  const percent = $derived(dragging === null && atEnd ? 100 : percentOf(dragging ?? loc.fraction));
   const chapterIndex = $derived(toc.findIndex((t) => t.href === loc.chapterHref));
 
   // ---- bookmarks and saved quotes in this book ----
@@ -206,13 +208,39 @@
     const at = nowIso();
     savedHere.add(at);
     await library.saveReaderPosition(itemId, fileId, { cfi: p.cfi, fraction: p.fraction, at });
+    const pct = p.end ? 100 : percentOf(p.fraction);
     logging = true;
     try {
-      await library.logReaderProgress(itemId, percentOf(p.fraction));
+      await library.logReaderProgress(itemId, pct);
+      if (pct === 100) await markFinished();
     } finally {
       seenEntry = latestKey();
       logging = false;
     }
+  }
+
+  // Turning to the end of the book finishes it: Currently Reading becomes Read, finished today.
+  // Only pages turned to count (not opening the book where it was left), and after Undo it isn't
+  // finished again until the book is opened again.
+  let finishUndone = false;
+  async function markFinished() {
+    const it = library.item(itemId);
+    const status = library.status(itemId);
+    if (!it || finishUndone || (status !== 'currently-reading' && status !== 'on-hold')) return;
+    const before = activeReading(library.readings(itemId));
+    await library.setStatus(it, 'read', today());
+    toasts.show(
+      'Marked as Read — finished today.',
+      'info',
+      8000,
+      before && {
+        label: 'Undo',
+        run: () => {
+          finishUndone = true;
+          void library.saveReading({ ...before }).then(() => toasts.show('Back to Reading.'));
+        },
+      },
+    );
   }
   const saveSoon = debounce(() => void save(), 2500);
 
@@ -407,10 +435,11 @@
           location: m.location,
         };
         lastCfi = m.cfi;
+        atEnd = !!m.end;
         // Only pages you turned to are saved: reopening at an old place mustn't overwrite a
         // newer one from another device.
         if (m.moved) {
-          pending = { cfi: m.cfi, fraction: m.fraction };
+          pending = { cfi: m.cfi, fraction: m.fraction, end: !!m.end };
           saveSoon();
           uploadWhenPaused();
           if (elsewhere && ++turnsSinceOffer >= 3) elsewhere = null;
