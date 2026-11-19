@@ -3,6 +3,7 @@
   import Cover from '../components/Cover.svelte';
   import Icon from '../components/Icon.svelte';
   import ItemGrid from '../components/ItemGrid.svelte';
+  import SeriesNotes from '../components/SeriesNotes.svelte';
   import StarRating from '../components/StarRating.svelte';
   import { itemsFor, kindInfo, nameOf, recordOf, seriesRows, type BrowseKind } from '../lib/browse';
   import { STATUS_LABEL } from '../lib/constants';
@@ -86,6 +87,7 @@
     />
     <span class="small muted">Shows gaps for the ones you don’t have.</span>
   </div>
+  {#if series}<SeriesNotes {series} />{/if}
   <ol class="order">
     {#each rows as row, i (row.item?.id ?? `gap-${row.position}-${i}`)}
       <li class:gap={!row.item}>

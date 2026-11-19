@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { searchAll, snippet } from '../src/lib/search';
-import type { Item, Quote, VocabWord } from '../src/lib/types';
+import type { Item, Quote, Series, VocabWord } from '../src/lib/types';
 
 const base = { createdAt: 'a', updatedAt: 'a' };
 const item = (id: string, title: string, extra: Partial<Item> = {}) =>
@@ -24,6 +24,18 @@ describe('search', () => {
     expect(r.quote[0].where).toBe('ch. 3');
     expect(r.word[0].where).toBe('ephemeral');
     expect(r.note.map((h) => h.id)).toEqual(['b:Notes']);
+  });
+
+  it('finds notes on a series, and leads to the series', () => {
+    const series: Series[] = [
+      { ...base, id: 's1', name: 'Lantern Street', notes: 'Read the side stories after the lantern festival arc.' },
+      { ...base, id: 's2', name: 'Old', notes: 'lantern', deleted: true },
+      { ...base, id: 's3', name: 'No notes' },
+    ];
+    const r = searchAll({ ...src, series }, 'lantern festival');
+    expect(r.note.map((h) => [h.id, h.seriesId, h.where, h.text.match])).toEqual([['series:s1', 's1', 'Series notes', 'lantern festival']]);
+    // A series' name alone isn't a note.
+    expect(searchAll({ ...src, series }, 'No notes').note).toEqual([]);
   });
 
   it('marks the match with text around it', () => {

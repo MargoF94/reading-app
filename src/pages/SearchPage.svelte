@@ -58,7 +58,7 @@
   }
 
   const results = $derived(
-    searchAll({ items: library.items, quotes: library.quotes, words: library.vocabulary, facets }, shown),
+    searchAll({ items: library.items, quotes: library.quotes, words: library.vocabulary, series: [...lookup.series.values()], facets }, shown),
   );
   const counts = $derived({
     item: results.item.length,
@@ -75,7 +75,8 @@
     ['note', 'Notes & reviews'],
   ];
 
-  const title = (h: Hit) => library.item(h.itemId)?.title ?? 'A deleted item';
+  const title = (h: Hit) => (h.seriesId ? lookup.series.get(h.seriesId)?.name : library.item(h.itemId)?.title) ?? 'A deleted item';
+  const href = (h: Hit) => (h.seriesId ? `#/browse/series/${h.seriesId}` : `#/item/${h.itemId}`);
   const setFilter = (k: HitKind | 'all') => router.setQuery({ in: k === 'all' ? undefined : k });
 </script>
 
@@ -120,7 +121,7 @@
           {#each results[k] as h (h.id)}
             {@const item = library.item(h.itemId)}
             <li>
-              <a href="#/item/{h.itemId}" class="hit {k}">
+              <a href={href(h)} class="hit {k}">
                 {#if k === 'item' && item}
                   <Cover {item} width={38} />
                   <span class="body">

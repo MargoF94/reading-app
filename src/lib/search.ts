@@ -1,6 +1,7 @@
 // One search across the library: books and fics, quotes, learned words, and
-// your own notes and reviews. Matching ignores case, ё/е and katakana/hiragana.
-import type { Item, Quote, VocabWord } from './types';
+// your own notes (on books and on series) and reviews. Matching ignores case, ё/е and
+// katakana/hiragana.
+import type { Item, Quote, Series, VocabWord } from './types';
 import { normalize } from './util';
 
 export interface Snippet {
@@ -14,7 +15,9 @@ export type HitKind = 'item' | 'quote' | 'word' | 'note';
 export interface Hit {
   kind: HitKind;
   id: string;
-  itemId: string;
+  itemId: string; // empty for notes on a series
+  /** Notes on a series rather than on a book. */
+  seriesId?: string;
   /** What matched, cut around the match. */
   text: Snippet;
   /** Where it matched, e.g. "tag", "Review", "Chapter 3". */
@@ -25,6 +28,8 @@ export interface SearchSource {
   items: Item[];
   quotes: Quote[];
   words: VocabWord[];
+  /** For notes on whole series. */
+  series?: Series[];
   /** Names shown for an item: authors, series, tags, genres… as [label, value] pairs. */
   facets: (item: Item) => [string, string][];
 }
@@ -81,6 +86,11 @@ export function searchAll(src: SearchSource, query: string, limit = 100): Record
       const s = snippet(text, needle);
       if (s) push('note', { kind: 'note', id: `${item.id}:${label}`, itemId: item.id, text: s, where: label });
     }
+  }
+
+  for (const s of src.series ?? []) {
+    const n = s.deleted ? undefined : snippet(s.notes, needle);
+    if (n) push('note', { kind: 'note', id: `series:${s.id}`, itemId: '', seriesId: s.id, text: n, where: 'Series notes' });
   }
 
   for (const q of src.quotes) {

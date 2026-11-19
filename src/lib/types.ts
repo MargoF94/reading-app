@@ -217,6 +217,7 @@ export interface Author extends NamedRecord {
 
 export interface Series extends NamedRecord {
   totalCount?: number;
+  notes?: string; // Markdown, like a book's notes
 }
 
 export interface ListEntry {
