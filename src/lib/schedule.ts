@@ -168,6 +168,14 @@ export function releaseNotices(items: Item[], today: string, dismissed: Set<stri
     .filter((n) => !dismissed.has(n.key));
 }
 
+/** Books coming out today that haven't been announced yet (keys as in `seen`), by title, leaving out ones already read. */
+export function releasesToday(items: Item[], today: string, seen: Set<string>, done: (item: Item) => boolean): { item: Item; key: string }[] {
+  return releases(items, today, today)
+    .map(({ item }) => ({ item, key: `${item.id}|${today}` }))
+    .filter((r) => !seen.has(r.key) && !done(r.item))
+    .sort((a, b) => a.item.title.localeCompare(b.item.title));
+}
+
 export function releaseLabel(days: number): string {
   if (days <= 0) return 'Out today';
   if (days === 1) return 'Out tomorrow';

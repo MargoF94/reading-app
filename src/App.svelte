@@ -20,6 +20,7 @@
   import { timer } from './lib/timer.svelte';
   import CalendarPage from './pages/CalendarPage.svelte';
   import ReminderBanner from './components/calendar/ReminderBanner.svelte';
+  import ReleaseDayPopup from './components/calendar/ReleaseDayPopup.svelte';
   import Stats from './pages/Stats.svelte';
   import YearInBooks from './pages/YearInBooks.svelte';
   import { kindInfo, type BrowseKind } from './lib/browse';
@@ -123,6 +124,7 @@
       >
     </div>
     <ReminderBanner />
+    <ReleaseDayPopup />
     {#if loadError}
       <div class="card">
         <h1>Couldn't open the library</h1>

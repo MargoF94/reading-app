@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   addDays, daysBetween, dueReminders, durationLabel, endTime, googleCalendarUrl, isUnreleased, monthGrid, monthReleases,
-  nextOccurrence, occurrences, occursOn, releaseLabel, releaseNotices, releases, toIcs, weekday,
+  nextOccurrence, occurrences, occursOn, releaseLabel, releaseNotices, releases, releasesToday, toIcs, weekday,
 } from '../src/lib/schedule';
 import type { Item, ReadingSession } from '../src/lib/types';
 
@@ -84,6 +84,16 @@ describe('releases', () => {
     expect(releaseNotices(items, '2026-10-02', new Set(['a|2026-10-03|week'])).map((x) => x.key)).toEqual(['a|2026-10-03|day']);
     expect(releaseNotices(items, '2026-09-25', new Set()).map((x) => x.item.id)).toEqual(['b']); // a is 8 days away
     expect([releaseLabel(0), releaseLabel(1), releaseLabel(6)]).toEqual(['Out today', 'Out tomorrow', 'Coming out in 6 days']);
+  });
+
+  it('finds books out today for the popup, once each', () => {
+    const list = [...items, book('f', '2026-09-28'), { ...book('g', '2026-09-28'), type: 'manga' as const }, { ...book('h', '2026-09-28'), type: 'fic' as const }];
+    const all = releasesToday(list, '2026-09-28', new Set(), () => false);
+    expect(all.map((r) => [r.item.id, r.key])).toEqual([['b', 'b|2026-09-28'], ['f', 'f|2026-09-28'], ['g', 'g|2026-09-28']]);
+    // Already shown, or already read: left out.
+    expect(releasesToday(list, '2026-09-28', new Set(['b|2026-09-28']), (i) => i.id === 'f').map((r) => r.item.id)).toEqual(['g']);
+    // A month alone, or another day: not today.
+    expect(releasesToday(list, '2026-10-01', new Set(), () => false)).toEqual([]);
   });
 });
 
