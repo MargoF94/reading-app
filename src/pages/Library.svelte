@@ -6,6 +6,7 @@
   import { kindleStatus } from '../lib/kindle.svelte';
   import { lastFinishDate } from '../lib/reading';
   import { router } from '../lib/router.svelte';
+  import { seriesOf } from '../lib/series';
   import { library } from '../lib/store.svelte';
   import type { Author, Item } from '../lib/types';
   import { collator, normalize, plural } from '../lib/util';
@@ -54,7 +55,7 @@
         item.originalTitle,
         item.titleReading,
         ...authors,
-        library.name('series', item.seriesId),
+        ...seriesOf(item).map((s) => library.name('series', s.id)),
         item.book?.isbn13,
         item.book?.isbn10,
         ...(item.fic?.fandoms ?? []),

@@ -38,6 +38,7 @@
           <span class="name">
             {e.name}
             {#if e.sub}<span class="muted small">· {e.sub}</span>{/if}
+            {#if e.length}<span class="muted small">· {e.length}</span>{/if}
           </span>
           <span class="counts small muted">{e.read ? `${e.read} read · ` : ''}{e.count}</span>
         </a>

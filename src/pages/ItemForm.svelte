@@ -7,11 +7,12 @@
   import Icon from '../components/Icon.svelte';
   import StarRating from '../components/StarRating.svelte';
   import { discardCover, isRepoCover, saveCover } from '../lib/covers';
-  import { attachDraftFile, draftFile, loadDraft, saveDraft, type ItemDraft } from '../lib/drafts';
+  import { attachDraftFile, draftFile, draftSeries, loadDraft, saveDraft, type ItemDraft } from '../lib/drafts';
   import { formatBytes, MAX_FILE_BYTES, uploadItemFile } from '../lib/itemFiles';
   import { sync } from '../lib/sync.svelte';
   import { convert, withRates } from '../lib/fx';
   import { knownStores, storeName } from '../lib/purchases';
+  import { seriesFields, seriesOf } from '../lib/series';
   import { cleanIsbn, validIsbn10, validIsbn13 } from '../lib/isbn';
   import {
     AO3_CATEGORIES,
@@ -27,7 +28,7 @@
   import { router } from '../lib/router.svelte';
   import { library, type NamedCollection } from '../lib/store.svelte';
   import { toasts } from '../lib/toast.svelte';
-  import type { Ao3Rating, BookFormat, Currency, Item, ItemType, Purchase, Status } from '../lib/types';
+  import type { Ao3Rating, BookFormat, Currency, Item, ItemType, Purchase, SeriesEntry, Status } from '../lib/types';
   import { isBookLike } from '../lib/types';
   import { ao3WorkId, collator, formatDate, formatMoney, newId, normalize, nowIso, parseNumber, today } from '../lib/util';
 
@@ -56,8 +57,16 @@
   let authorIds = $state<string[]>(existing?.authorIds ?? []);
   let language = $state<string | undefined>(existing?.language);
   let originalLanguage = $state<string | undefined>(existing?.originalLanguage);
-  let seriesId = $state<string | undefined>(existing?.seriesId);
-  let seriesNumber = $state(existing?.seriesNumber ?? '');
+  // Series: an item can be in several, each with its own number. The first is its main one.
+  interface SeriesRowDraft {
+    key: string;
+    id?: string; // a series record, or a new one ("new:Name") created on save
+    number: string;
+  }
+  const seriesRow = (id?: string, number = ''): SeriesRowDraft => ({ key: newId(), id, number });
+  let seriesList = $state<SeriesRowDraft[]>(
+    existing && seriesOf(existing).length ? seriesOf(existing).map((s) => seriesRow(s.id, s.number ?? '')) : [seriesRow()],
+  );
   let description = $state(existing?.description ?? '');
   let coverUrl = $state(existing?.coverUrl ?? '');
   let genreIds = $state<string[]>(existing?.genreIds ?? []);
@@ -180,9 +189,22 @@
     if (d.titleReading && want(titleReading)) titleReading = d.titleReading;
     if (d.authors?.length && want(authorIds)) authorIds = [...new Set(d.authors.map((a) => valueForName('authors', a)))];
     if (d.language && want(language)) language = d.language;
-    if (d.series && want(seriesId)) {
-      seriesId = valueForName('series', d.series);
-      seriesNumber = d.seriesNumber ?? '';
+    const drafted = draftSeries(d);
+    if (drafted.length) {
+      const anySeries = seriesList.some((r) => r.id);
+      if (!anySeries || (overwrite && isNew)) {
+        seriesList = drafted.map((s) => seriesRow(valueForName('series', s.name), s.number ?? ''));
+      } else if (overwrite) {
+        // An existing fic updated from AO3: its series there are brought up to date, and
+        // any series it was added to here stay.
+        for (const s of drafted) {
+          const id = valueForName('series', s.name);
+          const row = seriesList.find((r) => r.id === id);
+          if (row) row.number = s.number ?? row.number;
+          else seriesList.push(seriesRow(id, s.number ?? ''));
+        }
+        seriesList = seriesList.filter((r) => r.id);
+      }
     }
     if (d.description && want(description)) description = d.description;
     if (d.coverUrl && !photo && want(coverUrl)) coverUrl = d.coverUrl;
@@ -337,6 +359,9 @@
           new Promise<Purchase[]>((r) => setTimeout(() => r(finalPurchases), 6000)),
         ]);
       }
+      // Series one at a time, so a new one named in two rows is created once.
+      const placed: SeriesEntry[] = [];
+      for (const r of seriesList) if (r.id) placed.push({ id: await resolve('series', r.id), number: r.number });
       const item: Item = {
         id: itemId,
         createdAt: existing?.createdAt ?? now,
@@ -350,8 +375,7 @@
         originalLanguage,
         genreIds: await Promise.all(genreIds.map((v) => resolve('genres', v))),
         tagIds: await Promise.all(tagIds.map((v) => resolve('tags', v))),
-        seriesId: seriesId ? await resolve('series', seriesId) : undefined,
-        seriesNumber: seriesId ? seriesNumber.trim() || undefined : undefined,
+        ...seriesFields(placed),
         description: description.trim() || undefined,
         coverUrl: finalCover,
         rating,
@@ -362,6 +386,9 @@
         images: existing?.images,
         characterIds: existing?.characterIds,
         files: existing?.files,
+        // Set elsewhere (Editions, the cover dialog): kept as they are.
+        workKey: existing?.workKey,
+        epubCover: existing?.epubCover,
         wordCount: words,
         wordCountEstimated: words !== undefined && bookLike ? true : undefined,
       };
@@ -467,6 +494,23 @@
       source: 'bought',
       date: undefined,
     });
+  }
+
+  /** A row's series to choose from: all but the ones picked in the other rows. */
+  const seriesOptions = (row: SeriesRowDraft) =>
+    optionsFor('series').filter((o) => o.value === row.id || !seriesList.some((r) => r.id === o.value));
+  const seriesLabel = (row: SeriesRowDraft) => (row.id ? (optionsFor('series').find((o) => o.value === row.id)?.label ?? '') : '');
+
+  async function addSeriesRow() {
+    const row = seriesRow();
+    seriesList.push(row);
+    await tick();
+    document.getElementById(`f-series-${row.key}`)?.focus();
+  }
+
+  function removeSeriesRow(row: SeriesRowDraft) {
+    seriesList = seriesList.filter((r) => r.key !== row.key);
+    if (!seriesList.length) seriesList = [seriesRow()];
   }
 
   function toggle(list: string[], value: string): string[] {
@@ -581,22 +625,47 @@
         </div>
       {/if}
     </div>
-    <div class="grid-2 series">
-      <div class="field">
-        <label class="label" for="f-series">Series</label>
-        <Combobox
-          id="f-series"
-          options={optionsFor('series')}
-          value={seriesId}
-          onchange={(v) => (seriesId = v)}
-          oncreate={creator('series')}
-          placeholder="None"
-        />
+    <div class="field">
+      <!-- One row per series it's in, each with the number in that series. -->
+      <div class="series-rows">
+        <label class="label" for="f-series-{seriesList[0].key}">Series</label>
+        <label class="label" for="f-series-no-{seriesList[0].key}">Number</label>
+        <span></span>
+        {#each seriesList as row, i (row.key)}
+          {#if i > 0}<label class="visually-hidden" for="f-series-{row.key}">Also in series</label>{/if}
+          <Combobox
+            id="f-series-{row.key}"
+            options={seriesOptions(row)}
+            value={row.id}
+            onchange={(v) => (row.id = v)}
+            oncreate={creator('series')}
+            placeholder={i === 0 ? 'None' : 'Choose or add…'}
+            clearable={false}
+          />
+          <input
+            id="f-series-no-{row.key}"
+            bind:value={row.number}
+            disabled={!row.id}
+            placeholder={i === 0 ? 'e.g. 2' : ''}
+            inputmode="decimal"
+            aria-label={i === 0 ? undefined : `Number in ${seriesLabel(row) || 'this series'}`}
+          />
+          {#if seriesList.length > 1 || row.id}
+            <button
+              type="button"
+              class="btn ghost icon small"
+              aria-label={row.id ? `Remove from ${seriesLabel(row)}` : 'Remove this row'}
+              title={row.id ? `Remove from ${seriesLabel(row)}` : 'Remove this row'}
+              onclick={() => removeSeriesRow(row)}><Icon name="close" size={16} /></button
+            >
+          {:else}
+            <span></span>
+          {/if}
+        {/each}
       </div>
-      <label class="field">
-        <span>Number in series</span>
-        <input bind:value={seriesNumber} disabled={!seriesId} placeholder="e.g. 2" inputmode="decimal" />
-      </label>
+      {#if seriesList.every((r) => r.id)}
+        <div><button type="button" class="btn small add-series" onclick={addSeriesRow}>+ Add to another series</button></div>
+      {/if}
     </div>
   </fieldset>
 
@@ -983,6 +1052,21 @@
     flex-direction: row;
     flex-wrap: wrap;
     gap: 0.5rem 1.2rem;
+  }
+
+  .series-rows {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 4.75rem 40px;
+    gap: 0.45rem 0.5rem;
+    align-items: center;
+  }
+
+  .series-rows > .label {
+    margin-bottom: -0.15rem;
+  }
+
+  .add-series {
+    margin-top: 0.15rem;
   }
 
   .purchase {

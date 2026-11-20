@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { inSeries, withoutSeries } from '../lib/series';
   import { library, type NamedCollection } from '../lib/store.svelte';
   import { toasts } from '../lib/toast.svelte';
   import type { Author, Item, NamedRecord } from '../lib/types';
@@ -66,22 +67,19 @@
       i.authorIds.includes(id) ||
       i.genreIds.includes(id) ||
       i.tagIds.includes(id) ||
-      i.seriesId === id ||
+      inSeries(i, id) ||
       i.book?.publisherId === id
     );
   }
 
   function strip(i: Item, id: string): Item {
+    // A deleted series: the item's next series (if it's in others) becomes its main one.
     const out: Item = {
-      ...i,
+      ...withoutSeries(i, id),
       authorIds: i.authorIds.filter((x) => x !== id),
       genreIds: i.genreIds.filter((x) => x !== id),
       tagIds: i.tagIds.filter((x) => x !== id),
     };
-    if (out.seriesId === id) {
-      out.seriesId = undefined;
-      out.seriesNumber = undefined;
-    }
     if (out.book?.publisherId === id) out.book = { ...out.book, publisherId: undefined };
     return out;
   }

@@ -52,6 +52,31 @@ const nextData = {
 const page = `<!doctype html><html><head><title>x</title></head><body>
 <script id="__NEXT_DATA__" type="application/json">${JSON.stringify(nextData)}</script></body></html>`;
 
+describe('Goodreads series', () => {
+  const state = structuredClone(nextData.props.pageProps.apolloState) as Record<string, Record<string, unknown>>;
+  state['Book:1'].bookSeries = [
+    { userPosition: '2', series: { __ref: 'Series:1' } },
+    { userPosition: '', series: { __ref: 'Series:2' } },
+  ];
+  state['Series:2'] = { __typename: 'Series', title: 'Wider World' };
+  const draft = parseGoodreadsPayload({ s: 'gr', u: 'https://www.goodreads.com/book/show/42', st: state as never });
+  const nameId = async (c: string, n: string) => `${c}-${n}`;
+
+  it('reads every series a book is in', () => {
+    expect([draft.series, draft.seriesNumber]).toEqual(['Tests', '2']);
+    expect(draft.moreSeries).toEqual([{ name: 'Wider World', number: undefined }]);
+  });
+
+  it('adds them all to a book without a series, and leaves a book with one alone', async () => {
+    const { item } = await fillFromDraft(book(), draft, nameId, '2026-09-24');
+    expect([item.seriesId, item.seriesNumber]).toEqual(['series-Tests', '2']);
+    expect(item.moreSeries).toEqual([{ id: 'series-Wider World' }]);
+    const mine = await fillFromDraft(book({ moreSeries: undefined, seriesId: 'mine', seriesNumber: '1' }), draft, nameId, '2026-09-24');
+    expect([mine.item.seriesId, mine.item.seriesNumber, mine.item.moreSeries]).toEqual(['mine', '1', undefined]);
+    expect(mine.changed).not.toContain('series');
+  });
+});
+
 describe('Goodreads bulk update', () => {
   it('picks books with a Goodreads link that were not updated yet', () => {
     const items = [

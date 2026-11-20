@@ -1,5 +1,6 @@
 // Browse pages: groups of items by author, series, genre, tag, publisher or AO3 tag.
 // Plain functions over the library; call them inside $derived to stay reactive.
+import { lengthSummary, seriesLength, seriesOf } from './series';
 import { library } from './store.svelte';
 import type { Author, Item, NamedRecord } from './types';
 import { collator } from './util';
@@ -42,7 +43,7 @@ const FIC_FIELD = {
 export function keysOf(item: Item, kind: BrowseKind): string[] {
   switch (kind) {
     case 'series':
-      return item.seriesId ? [item.seriesId] : [];
+      return seriesOf(item).map((s) => s.id);
     case 'authors':
       return item.authorIds;
     case 'genres':
@@ -81,16 +82,18 @@ export interface BrowseEntry {
   count: number;
   read: number;
   sub?: string;
+  /** Series: total pages of its books and manga, words of its fics. */
+  length?: string;
 }
 
 /** Every group of a kind with how many items it has and how many are read. */
 export function browseIndex(kind: BrowseKind): BrowseEntry[] {
-  const groups = new Map<string, { count: number; read: number }>();
+  const groups = new Map<string, { items: Item[]; read: number }>();
   for (const item of library.items) {
     const read = library.status(item.id) === 'read' ? 1 : 0;
     for (const key of keysOf(item, kind)) {
-      const g = groups.get(key) ?? { count: 0, read: 0 };
-      g.count++;
+      const g = groups.get(key) ?? { items: [], read: 0 };
+      g.items.push(item);
       g.read += read;
       groups.set(key, g);
     }
@@ -102,7 +105,8 @@ export function browseIndex(kind: BrowseKind): BrowseEntry[] {
     const rec = recordOf(kind, key);
     let sub: string | undefined;
     if (kind === 'authors') sub = ((rec as Author | undefined)?.altNames ?? []).join(', ') || undefined;
-    out.push({ key, name, count: g.count, read: g.read, sub });
+    const length = kind === 'series' ? lengthSummary(seriesLength(g.items)) || undefined : undefined;
+    out.push({ key, name, count: g.items.length, read: g.read, sub, length });
   }
   return out.sort((a, b) => collator.compare(a.name, b.name));
 }
@@ -122,30 +126,36 @@ export interface SeriesRow {
   item?: Item; // undefined = gap (not in the library)
 }
 
-/** Reading order with gaps for missing whole numbers up to the series length. */
-export function seriesRows(items: Item[], totalCount?: number): SeriesRow[] {
-  const sorted = [...items].sort(
-    (a, b) => seriesPosition(a.seriesNumber) - seriesPosition(b.seriesNumber) || collator.compare(a.title, b.title),
-  );
-  const numbered = sorted.filter((i) => Number.isFinite(seriesPosition(i.seriesNumber)));
-  const unnumbered = sorted.filter((i) => !Number.isFinite(seriesPosition(i.seriesNumber)));
-  const max = Math.max(totalCount ?? 0, ...numbered.map((i) => Math.floor(seriesPosition(i.seriesNumber))), 0);
+/**
+ * Reading order with gaps for missing whole numbers up to the series length.
+ * `numberOf` gives an item's number in this series (an item can be in several).
+ */
+export function seriesRows(
+  items: Item[],
+  totalCount?: number,
+  numberOf: (item: Item) => string | undefined = (i) => i.seriesNumber,
+): SeriesRow[] {
+  const pos = (i: Item) => seriesPosition(numberOf(i));
+  const sorted = [...items].sort((a, b) => pos(a) - pos(b) || collator.compare(a.title, b.title));
+  const numbered = sorted.filter((i) => Number.isFinite(pos(i)));
+  const unnumbered = sorted.filter((i) => !Number.isFinite(pos(i)));
+  const max = Math.max(totalCount ?? 0, ...numbered.map((i) => Math.floor(pos(i))), 0);
   const rows: SeriesRow[] = [];
-  const have = new Set(numbered.map((i) => Math.floor(seriesPosition(i.seriesNumber))));
+  const have = new Set(numbered.map((i) => Math.floor(pos(i))));
   let idx = 0;
   for (let n = 1; n <= max; n++) {
-    while (idx < numbered.length && seriesPosition(numbered[idx].seriesNumber) < n) {
-      rows.push({ position: seriesPosition(numbered[idx].seriesNumber), item: numbered[idx] });
+    while (idx < numbered.length && pos(numbered[idx]) < n) {
+      rows.push({ position: pos(numbered[idx]), item: numbered[idx] });
       idx++;
     }
     if (!have.has(n)) rows.push({ position: n });
-    while (idx < numbered.length && Math.floor(seriesPosition(numbered[idx].seriesNumber)) === n) {
-      rows.push({ position: seriesPosition(numbered[idx].seriesNumber), item: numbered[idx] });
+    while (idx < numbered.length && Math.floor(pos(numbered[idx])) === n) {
+      rows.push({ position: pos(numbered[idx]), item: numbered[idx] });
       idx++;
     }
   }
   while (idx < numbered.length) {
-    rows.push({ position: seriesPosition(numbered[idx].seriesNumber), item: numbered[idx] });
+    rows.push({ position: pos(numbered[idx]), item: numbered[idx] });
     idx++;
   }
   for (const item of unnumbered) rows.push({ item });

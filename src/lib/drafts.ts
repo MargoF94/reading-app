@@ -16,6 +16,8 @@ export interface ItemDraft {
   originalLanguage?: string;
   series?: string;
   seriesNumber?: string;
+  /** Other series it's in (AO3 works and Goodreads books can be in several). */
+  moreSeries?: { name: string; number?: string }[];
   description?: string;
   coverUrl?: string;
   genres?: string[];
@@ -23,6 +25,12 @@ export interface ItemDraft {
   wordCount?: number;
   book?: Partial<Omit<BookDetails, 'publisherId' | 'purchases'>> & { publisher?: string };
   fic?: Partial<FicDetails>;
+}
+
+/** Every series in a draft, the main one first. */
+export function draftSeries(d: ItemDraft): { name: string; number?: string }[] {
+  const all = [...(d.series ? [{ name: d.series, number: d.seriesNumber }] : []), ...(d.moreSeries ?? [])];
+  return all.filter((s) => s.name?.trim());
 }
 
 const memory = new Map<string, ItemDraft>();

@@ -29,6 +29,7 @@
   import { convert } from '../lib/fx';
   import { activeReading, entryLabel, entryPercent, formatMinutes, latestEntry, unreadChapters } from '../lib/reading';
   import { router } from '../lib/router.svelte';
+  import { seriesOf } from '../lib/series';
   import { library } from '../lib/store.svelte';
   import { toasts } from '../lib/toast.svelte';
   import type { Currency } from '../lib/types';
@@ -72,6 +73,9 @@
     toasts.show('Deleted.');
     router.go('/library', true);
   }
+
+  /** Every series the item is in (a book can be in more than one), the main one first. */
+  const itemSeries = $derived(item ? seriesOf(item).filter((s) => library.name('series', s.id)) : []);
 
   const displayCurrency = $derived(library.settings.displayCurrency);
   const newChapters = $derived(item ? unreadChapters(item, library.readings(item.id)) : 0);
@@ -176,9 +180,11 @@
         {#each item.authorIds as aid, i (aid)}{#if i > 0},
           {/if}<a href="#/browse/authors/{aid}">{library.name('authors', aid)}</a>{:else}Unknown author{/each}
       </p>
-      {#if item.seriesId}
-        <p class="small">
-          <a href="#/browse/series/{item.seriesId}">{library.name('series', item.seriesId)}{item.seriesNumber ? ` #${item.seriesNumber}` : ''}</a>
+      {#if itemSeries.length}
+        <p class="small series">
+          {#each itemSeries as s, i (s.id)}{#if i > 0}<span class="muted" aria-hidden="true">{' · '}</span>{/if}<a
+              href="#/browse/series/{s.id}">{library.name('series', s.id)}{s.number ? ` #${s.number}` : ''}</a
+            >{/each}
         </p>
       {/if}
 

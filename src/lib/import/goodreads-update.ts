@@ -9,8 +9,9 @@
 //   Goodreads tab → app: { t: 'rl-book', id, data | error }
 // The app paces the requests, so the Goodreads tab needs no timers of its own
 // (browsers slow those down in background tabs).
-import type { ItemDraft } from '../drafts';
-import type { Item } from '../types';
+import { draftSeries, type ItemDraft } from '../drafts';
+import { seriesFields, seriesOf } from '../series';
+import type { Item, SeriesEntry } from '../types';
 import { isBookLike } from '../types';
 import { collectGoodreads } from './goodreads-page';
 
@@ -57,9 +58,11 @@ export async function fillFromDraft(
     next.authorIds = [...new Set(await Promise.all(d.authors.map((a) => nameId('authors', a))))];
     changed.push('authors');
   }
-  if (d.series && !next.seriesId) {
-    next.seriesId = await nameId('series', d.series);
-    next.seriesNumber = d.seriesNumber;
+  const drafted = draftSeries(d);
+  if (drafted.length && !seriesOf(next).length) {
+    const list: SeriesEntry[] = [];
+    for (const s of drafted) list.push({ id: await nameId('series', s.name), number: s.number });
+    Object.assign(next, seriesFields(list));
     changed.push('series');
   }
   if (d.genres?.length) {

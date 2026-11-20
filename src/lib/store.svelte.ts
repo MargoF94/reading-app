@@ -7,6 +7,7 @@ import { emptyCollections, mergeCollections } from './merge';
 import { characterIndex } from './characters';
 import { readerProgress } from './reader';
 import { deriveStatus, sortReadings, transition } from './reading';
+import { inSeries } from './series';
 import { COLLECTION_NAMES, isBookLike } from './types';
 import { upgradeCollections, upgrades } from './upgrade';
 import type {
@@ -233,7 +234,7 @@ class Library {
         case 'tags':
           return i.tagIds.includes(id);
         case 'series':
-          return i.seriesId === id;
+          return inSeries(i, id);
         case 'publishers':
           return i.book?.publisherId === id;
       }

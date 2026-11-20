@@ -3,6 +3,7 @@
   import Icon from '../components/Icon.svelte';
   import { router } from '../lib/router.svelte';
   import { searchAll, type Hit, type HitKind } from '../lib/search';
+  import { seriesOf } from '../lib/series';
   import { library } from '../lib/store.svelte';
   import type { Author, Item, NamedRecord } from '../lib/types';
   import { debounce } from '../lib/util';
@@ -37,8 +38,10 @@
       const a = L.authors.get(id);
       if (a) for (const n of [a.name, ...(a.altNames ?? [])]) out.push(['author', n]);
     }
-    const series = item.seriesId && L.series.get(item.seriesId)?.name;
-    if (series) out.push(['series', series]);
+    for (const s of seriesOf(item)) {
+      const series = L.series.get(s.id)?.name;
+      if (series) out.push(['series', series]);
+    }
     for (const id of item.genreIds) out.push(['genre', L.genres.get(id)?.name ?? '']);
     for (const id of item.tagIds) out.push(['tag', L.tags.get(id)?.name ?? '']);
     for (const id of item.characterIds ?? []) {

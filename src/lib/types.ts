@@ -135,6 +135,12 @@ export interface ItemImage {
   addedAt: string;
 }
 
+/** An item's place in a series. */
+export interface SeriesEntry {
+  id: string; // a Series record
+  number?: string; // as seriesNumber: "2", "1.5", "3-4"
+}
+
 export interface ReaderPosition {
   cfi: string; // EPUB CFI of the place on the page
   fraction: number; // 0–1 through the book
@@ -151,8 +157,11 @@ export interface Item extends BaseRecord {
   originalLanguage?: string;
   genreIds: string[];
   tagIds: string[];
+  /** The main series: shown on covers and used for sorting. */
   seriesId?: string;
   seriesNumber?: string; // string to allow "1.5", "3-4"
+  /** Other series the item is also in, each with its number there (see lib/series.ts). */
+  moreSeries?: SeriesEntry[];
   description?: string;
   coverUrl?: string;
   /** The cover (a picture uploaded or made here) also goes into the item's EPUBs, including ones added later. */

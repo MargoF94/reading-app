@@ -88,11 +88,21 @@ export function parseAo3Document(doc: Document, urlHint?: string): ItemDraft {
       const attr = dd.getAttribute('lang')?.slice(0, 2).toLowerCase();
       draft.language = attr && LANG_CODES.has(attr) ? attr : AO3_LANGUAGE_CODES[textOf(dd).toLowerCase()];
     } else if (/^series$/.test(label)) {
-      const pos = textOf(dd.querySelector('.position')) || textOf(dd);
-      const m = pos.match(/Part\s+(\d+)\s+of\s+(.+?)(?:,\s*Part\s+\d+\s+of\s+.*)?$/i);
-      if (m) {
-        draft.seriesNumber = m[1];
-        draft.series = m[2].replace(/\s*(?:[←→«»]|Previous Work|Next Work).*$/i, '').trim();
+      // "Part 2 of Coastal Tales": a work can be in several series. The work page has a
+      // .position for each; a download lists them as "Part 2 of A, Part 1 of B".
+      const positions = [...dd.querySelectorAll('.position')].map(textOf).filter(Boolean);
+      const found: { name: string; number: string }[] = [];
+      for (const text of positions.length ? positions : [textOf(dd)]) {
+        for (const m of text.matchAll(/Part\s+(\d+)\s+of\s+(.+?)(?=,\s*Part\s+\d+\s+of\s|$)/gi)) {
+          const name = m[2].replace(/\s*(?:[←→«»]|Previous Work|Next Work).*$/i, '').trim();
+          if (name && !found.some((f) => f.name === name)) found.push({ name, number: m[1] });
+        }
+      }
+      const [main, ...more] = found;
+      if (main) {
+        draft.series = main.name;
+        draft.seriesNumber = main.number;
+        if (more.length) draft.moreSeries = more;
       }
     } else if (/^stats$/.test(label)) stats = textOf(dd);
   }

@@ -51,6 +51,26 @@ describe('AO3', () => {
     });
   });
 
+  it('takes every series a work is in', () => {
+    const page = fixture('ao3-work.html').replace(
+      '</span></span></dd>',
+      '</span></span><span class="series"><span class="position">Part 5 of <a href="/series/100">Lighthouse Keepers</a></span></span></dd>',
+    );
+    const d = parseAo3Html(page);
+    expect([d.series, d.seriesNumber]).toEqual(['Coastal Tales', '2']);
+    expect(d.moreSeries).toEqual([{ name: 'Lighthouse Keepers', number: '5' }]);
+    expect(parseAo3Html(fixture('ao3-work.html')).moreSeries).toBeUndefined();
+
+    const download = parseAo3Html(
+      fixture('ao3-download.html').replace(
+        '<dd>Part 3 of <a href="#">Tidal</a></dd>',
+        '<dd>Part 3 of <a href="#">Tidal</a>, Part 1 of <a href="#">Harbour, Days</a></dd>',
+      ),
+    );
+    expect([download.series, download.seriesNumber]).toEqual(['Tidal', '3']);
+    expect(download.moreSeries).toEqual([{ name: 'Harbour, Days', number: '1' }]);
+  });
+
   it('parses AO3’s Download → HTML format', () => {
     const d = parseAo3Html(fixture('ao3-download.html'));
     expect(d.title).toBe('Salt and Stars');

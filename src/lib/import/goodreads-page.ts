@@ -99,10 +99,16 @@ export function parseGoodreadsPayload(p: GoodreadsPayload): ItemDraft {
     const genres = ((b.bookGenres as unknown[]) ?? []).map((g) => str(asObj(asObj(g)?.genre)?.name)).filter((n): n is string => !!n);
     draft.genres = genres.slice(0, 3);
     if (genres.some((g) => /^manga$/i.test(g))) draft.type = 'manga';
-    const series = asObj(((b.bookSeries as unknown[]) ?? [])[0]);
-    if (series) {
-      draft.series = str(ref(series.series)?.title);
-      draft.seriesNumber = str(series.userPosition);
+    // A book can be in several series (e.g. its own and a wider one it's part of).
+    const series = ((b.bookSeries as unknown[]) ?? [])
+      .map(asObj)
+      .map((s) => ({ name: str(ref(s?.series)?.title), number: str(s?.userPosition) }))
+      .filter((s): s is { name: string; number: string | undefined } => !!s.name)
+      .filter((s, i, all) => all.findIndex((o) => o.name === s.name) === i);
+    if (series.length) {
+      draft.series = series[0].name;
+      draft.seriesNumber = series[0].number;
+      if (series.length > 1) draft.moreSeries = series.slice(1);
     }
     const d = asObj(b.details) ?? {};
     book.format = mapBinding(str(d.format) ?? '');

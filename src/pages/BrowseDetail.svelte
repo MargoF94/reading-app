@@ -8,9 +8,10 @@
   import { itemsFor, kindInfo, nameOf, recordOf, seriesRows, type BrowseKind } from '../lib/browse';
   import { STATUS_LABEL } from '../lib/constants';
   import { router } from '../lib/router.svelte';
+  import { numberIn, seriesLength } from '../lib/series';
   import { library } from '../lib/store.svelte';
   import type { Author, Item, Series } from '../lib/types';
-  import { collator, parseNumber, plural } from '../lib/util';
+  import { collator, formatNumber, parseNumber, plural } from '../lib/util';
 
   let { kind, key }: { kind: BrowseKind; key: string } = $props();
 
@@ -22,9 +23,22 @@
   const rated = $derived(items.filter((i) => i.rating));
   const avgRating = $derived(rated.length ? rated.reduce((s, i) => s + i.rating!, 0) / rated.length : undefined);
 
-  // Series: reading order with gaps.
+  // Series: reading order with gaps (by each item's number in this series: it can be in others too).
   const series = $derived(kind === 'series' ? (record as Series | undefined) : undefined);
-  const rows = $derived(kind === 'series' ? seriesRows(items, series?.totalCount) : []);
+  const rows = $derived(kind === 'series' ? seriesRows(items, series?.totalCount, (i) => numberIn(i, key)) : []);
+
+  // Series: how long it is. Pages of its books and manga, words of its fics.
+  const length = $derived(kind === 'series' ? seriesLength(items) : undefined);
+  const paged = $derived(length ? length.pagedBooks + length.pagedManga : 0);
+  const pagedWhat = $derived(
+    length
+      ? [length.pagedBooks ? plural(length.pagedBooks, 'book') : '', length.pagedManga ? `${formatNumber(length.pagedManga)} manga` : '']
+          .filter(Boolean)
+          .join(' and ')
+      : '',
+  );
+  /** " (2 more have no page count)": the ones the total leaves out. */
+  const leftOut = (n: number, what: string) => (n ? ` (${n} more ${n === 1 ? 'has' : 'have'} no ${what})` : '');
 
   // Everything else: currently reading first, then by series, then title.
   const STATUS_ORDER = { 'currently-reading': 0, 'on-hold': 1, 'want-to-read': 2, read: 3, dnf: 4 };
@@ -73,6 +87,20 @@
   {plural(items.length, 'item')} · {readCount} read{avgRating ? ` · average rating ${avgRating.toFixed(1)}` : ''}
   {#if series?.totalCount}· {readCount} of {series.totalCount} in the series read{/if}
 </p>
+{#if length && (paged || length.noPages || length.countedFics || length.noWords)}
+  <p class="length">
+    {#if paged}
+      <span><strong>{plural(length.pages, 'page')}</strong> in {pagedWhat}<span class="muted">{leftOut(length.noPages, 'page count')}</span></span>
+    {:else if length.noPages}
+      <span class="muted">No page counts yet</span>
+    {/if}
+    {#if length.countedFics}
+      <span><strong>{plural(length.words, 'word')}</strong> in {plural(length.countedFics, 'fic')}<span class="muted">{leftOut(length.noWords, 'word count')}</span></span>
+    {:else if length.noWords}
+      <span class="muted">No word counts yet</span>
+    {/if}
+  </p>
+{/if}
 <BrowseNav current={kind} />
 
 {#if kind === 'series'}
@@ -147,6 +175,15 @@
 
   .summary {
     margin-bottom: 1rem;
+  }
+
+  /* Total length of a series, between the summary and the browse tabs. */
+  .length {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem 1.2rem;
+    margin: -0.6rem 0 1rem;
+    font-size: 0.92rem;
   }
 
   .series-total {

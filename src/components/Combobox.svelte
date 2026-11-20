@@ -100,7 +100,7 @@
   }
 </script>
 
-<div class="combo" class:multiple>
+<div class="combo" class:multiple class:with-clear={!multiple && !!value && clearable}>
   <div class="control">
     {#if multiple}
       {#each values as v, i (v)}
@@ -218,6 +218,11 @@
   }
 
   .combo:not(.multiple) input {
+    text-overflow: ellipsis;
+  }
+
+  /* Room for the clear button, when there is one. */
+  .combo.with-clear input {
     padding-right: 2.2em;
   }
 
