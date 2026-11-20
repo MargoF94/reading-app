@@ -1,6 +1,7 @@
 <script lang="ts">
   import Cover from '../components/Cover.svelte';
   import GoalsCard from '../components/GoalsCard.svelte';
+  import Icon from '../components/Icon.svelte';
   import HomePlanner from '../components/calendar/HomePlanner.svelte';
   import ItemCard from '../components/ItemCard.svelte';
   import ProgressBar from '../components/ProgressBar.svelte';
@@ -17,6 +18,9 @@
   const byStatus = (s: string) => library.items.filter((i) => library.status(i.id) === s);
 
   const reading = $derived(byStatus('currently-reading'));
+  // Pinned items sit at the very top; the rest of what you're reading follows further down.
+  const pinnedIds = $derived(new Set(library.pinned.map((i) => i.id)));
+  const readingRest = $derived(reading.filter((i) => !pinnedIds.has(i.id)));
   // Most recently active first: last progress update, else start date, else when added.
   const lastActivity = (item: Item) => {
     const r = activeReading(library.readings(item.id));
@@ -24,7 +28,7 @@
   };
   const SHOWN = 6;
   const readingShown = $derived(
-    [...reading].sort((a, b) => lastActivity(b).localeCompare(lastActivity(a))).slice(0, SHOWN),
+    [...readingRest].sort((a, b) => lastActivity(b).localeCompare(lastActivity(a))).slice(0, SHOWN),
   );
   const onHold = $derived(byStatus('on-hold'));
   // Unfinished fics you've paused until the author posts more.
@@ -67,6 +71,39 @@
 
 <h1>Home</h1>
 
+{#snippet nowCard(item: Item, pinned: boolean)}
+  {@const p = progress(item)}
+  {@const epub = readableFile(item)}
+  {@const left = epub?.position ? timeLeft(library.timeFor(item.id), epub.position.fraction) : undefined}
+  <div class="card now">
+    <a href="#/item/{item.id}" style="text-decoration:none"><Cover {item} width={72} /></a>
+    <div class="now-info">
+      <a class="title" href="#/item/{item.id}">{item.title}</a>
+      <span class="small muted">{library.authorNames(item)}</span>
+      <ProgressBar percent={p.percent} label={p.label} />
+      {#if left !== undefined}<span class="small muted">about {formatDuration(left)} left</span>{/if}
+      <div class="row now-actions">
+        {#if epub}
+          <a class="btn small primary" href="#/read/{item.id}/{epub.id}">
+            {epub.position?.fraction ? `Continue · ${percentOf(epub.position.fraction)}%` : 'Read'}
+          </a>
+        {:else}
+          <TimerButton {item} />
+        {/if}
+        <button type="button" class="btn small" onclick={() => (updating = item)}>Update progress</button>
+      </div>
+    </div>
+    <button
+      type="button"
+      class="btn ghost icon small pin"
+      class:on={pinned}
+      aria-label={pinned ? `Unpin ${item.title}` : `Pin ${item.title} to the top of Home`}
+      title={pinned ? 'Unpin' : 'Pin to the top of Home'}
+      onclick={() => library.setPinned(item, !pinned)}><Icon name="pin" filled={pinned} size={18} /></button
+    >
+  </div>
+{/snippet}
+
 {#if library.items.length === 0}
   <div class="card empty">
     <h2>Your library is empty</h2>
@@ -81,6 +118,15 @@
     </p>
   </div>
 {:else}
+  {#if library.pinned.length}
+    <section class="pinned" aria-labelledby="pinned-heading">
+      <h2 id="pinned-heading"><Icon name="pin" filled size={18} /> Pinned</h2>
+      <div class="current">
+        {#each library.pinned as item (item.id)}{@render nowCard(item, true)}{/each}
+      </div>
+    </section>
+  {/if}
+
   <TodayCard />
   <HomePlanner />
 
@@ -93,42 +139,21 @@
 
   <div class="goals"><GoalsCard year={year} compact /></div>
 
-  <section>
-    <h2>Currently reading</h2>
-    {#if reading.length === 0}
-      <p class="muted">Nothing in progress. <a href="#/library?status=want-to-read">Pick something to read</a>.</p>
-    {:else}
-      <div class="current">
-        {#each readingShown as item (item.id)}
-          {@const p = progress(item)}
-          {@const epub = readableFile(item)}
-          {@const left = epub?.position ? timeLeft(library.timeFor(item.id), epub.position.fraction) : undefined}
-          <div class="card now">
-            <a href="#/item/{item.id}" style="text-decoration:none"><Cover {item} width={72} /></a>
-            <div class="now-info">
-              <a class="title" href="#/item/{item.id}">{item.title}</a>
-              <span class="small muted">{library.authorNames(item)}</span>
-              <ProgressBar percent={p.percent} label={p.label} />
-              {#if left !== undefined}<span class="small muted">about {formatDuration(left)} left</span>{/if}
-              <div class="row now-actions">
-                {#if epub}
-                  <a class="btn small primary" href="#/read/{item.id}/{epub.id}">
-                    {epub.position?.fraction ? `Continue · ${percentOf(epub.position.fraction)}%` : 'Read'}
-                  </a>
-                {:else}
-                  <TimerButton {item} />
-                {/if}
-                <button type="button" class="btn small" onclick={() => (updating = item)}>Update progress</button>
-              </div>
-            </div>
-          </div>
-        {/each}
-      </div>
-      {#if reading.length > SHOWN}
-        <p><a href="#/library?status=currently-reading">See all {reading.length} books you’re reading</a></p>
+  {#if reading.length === 0 || readingRest.length}
+    <section>
+      <h2>{library.pinned.length && reading.length ? 'Also reading' : 'Currently reading'}</h2>
+      {#if reading.length === 0}
+        <p class="muted">Nothing in progress. <a href="#/library?status=want-to-read">Pick something to read</a>.</p>
+      {:else}
+        <div class="current">
+          {#each readingShown as item (item.id)}{@render nowCard(item, false)}{/each}
+        </div>
+        {#if readingRest.length > SHOWN}
+          <p><a href="#/library?status=currently-reading">See all {reading.length} books you’re reading</a></p>
+        {/if}
       {/if}
-    {/if}
-  </section>
+    </section>
+  {/if}
 
   {#if updated.length}
     <section>
@@ -246,6 +271,31 @@
     display: flex;
     gap: 0.9rem;
     align-items: flex-start;
+    position: relative;
+  }
+
+  /* Pin / unpin, in the card's top corner. */
+  .pin {
+    position: absolute;
+    top: 0.35rem;
+    right: 0.35rem;
+    width: 36px;
+    min-height: 36px;
+    color: var(--text-2);
+  }
+
+  .pin.on {
+    color: var(--accent);
+  }
+
+  .pinned {
+    margin: 0.4rem 0 1.25rem;
+  }
+
+  .pinned h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
   }
 
   .now-info {
@@ -266,6 +316,7 @@
     color: inherit;
     text-decoration: none;
     overflow-wrap: anywhere;
+    padding-right: 2rem; /* clear of the pin */
   }
 
   .updates {

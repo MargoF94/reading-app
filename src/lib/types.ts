@@ -180,6 +180,8 @@ export interface Item extends BaseRecord {
   files?: StoredFile[];
   /** Shared by editions of the same work (e.g. a Japanese original and its translation). */
   workKey?: string;
+  /** When it was pinned to the top of Home (unset: not pinned). Finishing it unpins it. */
+  pinnedAt?: string;
   book?: BookDetails;
   fic?: FicDetails;
 }

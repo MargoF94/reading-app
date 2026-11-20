@@ -6,6 +6,7 @@ import { discardCover } from './covers';
 import * as db from './db';
 import { emptyCollections, mergeCollections } from './merge';
 import { characterIndex } from './characters';
+import { pinnedItems, unpinsOn } from './pins';
 import { readerProgress } from './reader';
 import { deriveStatus, sortReadings, transition } from './reading';
 import { inSeries } from './series';
@@ -61,6 +62,9 @@ class Library {
     for (const item of this.items) map.set(item.id, deriveStatus(this.readingsByItem.get(item.id) ?? []));
     return map;
   });
+
+  /** Pinned to the top of Home, the most recently pinned first. */
+  pinned = $derived(pinnedItems(this.items));
 
   lists = $derived(
     this.data.lists.filter((l) => !l.deleted).sort((a, b) => collator.compare(a.name, b.name)),
@@ -308,6 +312,16 @@ class Library {
     const changes = transition(item, this.readings(item.id), target, date, nowIso());
     await this.put('readings', changes.upsert);
     await this.remove('readings', changes.remove);
+    // Finished (or stopped): no longer pinned to Home.
+    const fresh = this.item(item.id);
+    if (unpinsOn(target) && fresh?.pinnedAt) await this.put('items', [{ ...fresh, pinnedAt: undefined }]);
+  }
+
+  /** Pins an item to the top of Home, or unpins it. */
+  async setPinned(item: Item, pinned: boolean): Promise<void> {
+    const fresh = this.item(item.id);
+    if (!fresh || !!fresh.pinnedAt === pinned) return;
+    await this.put('items', [{ ...fresh, pinnedAt: pinned ? nowIso() : undefined }]);
   }
 
   /** Changes one stored file of an item (bookmarks, …). */

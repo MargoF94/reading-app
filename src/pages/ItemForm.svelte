@@ -386,9 +386,10 @@
         images: existing?.images,
         characterIds: existing?.characterIds,
         files: existing?.files,
-        // Set elsewhere (Editions, the cover dialog): kept as they are.
+        // Set elsewhere (Editions, the cover dialog, Home): kept as they are.
         workKey: existing?.workKey,
         epubCover: existing?.epubCover,
+        pinnedAt: existing?.pinnedAt,
         wordCount: words,
         wordCountEstimated: words !== undefined && bookLike ? true : undefined,
       };

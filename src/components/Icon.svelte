@@ -46,18 +46,20 @@
     bag: 'M6 7h12l1 14H5zM9 7V5a3 3 0 0 1 6 0v2',
     gift: 'M20 12v9H4v-9M2 7h20v5H2zM12 21V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z',
     target: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 12h.01',
+    pin: 'M8 3h8M10 3v6l-3.5 4.5h11L14 9V3M12 13.5V21',
   };
 </script>
 
 <script lang="ts">
-  let { name, size = 20, label }: { name: string; size?: number; label?: string } = $props();
+  // `filled`: solid rather than outlined (e.g. a pin that is on).
+  let { name, size = 20, label, filled = false }: { name: string; size?: number; label?: string; filled?: boolean } = $props();
 </script>
 
 <svg
   width={size}
   height={size}
   viewBox="0 0 24 24"
-  fill="none"
+  fill={filled ? 'currentColor' : 'none'}
   stroke="currentColor"
   stroke-width="1.9"
   stroke-linecap="round"

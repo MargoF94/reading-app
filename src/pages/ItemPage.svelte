@@ -60,6 +60,14 @@
     if (item) await library.saveItem({ ...item, rating: v });
   }
 
+  /** Pinned items sit at the very top of Home, for quick access. */
+  async function togglePin() {
+    if (!item) return;
+    const pin = !item.pinnedAt;
+    await library.setPinned(item, pin);
+    toasts.show(pin ? 'Pinned to the top of Home.' : 'Unpinned from Home.');
+  }
+
   async function remove() {
     const files = item?.files ?? [];
     const also = files.length ? ` and its ${files.length === 1 ? 'file' : `${files.length} files`} in your repository` : '';
@@ -193,6 +201,10 @@
         {#if status === 'currently-reading' || status === 'on-hold'}
           <button type="button" class="btn" onclick={() => (showProgress = true)}>Update progress</button>
         {/if}
+        <button type="button" class="btn" class:pinned={!!item.pinnedAt} onclick={togglePin}>
+          <Icon name="pin" filled={!!item.pinnedAt} size={18} />
+          {item.pinnedAt ? 'Unpin from Home' : 'Pin to Home'}
+        </button>
       </div>
 
       {#if item.fic && !item.fic.complete}
@@ -415,6 +427,10 @@
     flex-wrap: wrap;
     justify-content: center;
     margin: 0.6rem 0 0.3rem;
+  }
+
+  .actions .pinned {
+    color: var(--accent);
   }
 
   .progress {
