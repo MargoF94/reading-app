@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import BookLookup from '../components/BookLookup.svelte';
   import Combobox, { type Option } from '../components/Combobox.svelte';
   import CoverField from '../components/CoverField.svelte';
@@ -11,6 +11,7 @@
   import { formatBytes, MAX_FILE_BYTES, uploadItemFile } from '../lib/itemFiles';
   import { sync } from '../lib/sync.svelte';
   import { convert, withRates } from '../lib/fx';
+  import { knownStores, storeName } from '../lib/purchases';
   import { cleanIsbn, validIsbn10, validIsbn13 } from '../lib/isbn';
   import {
     AO3_CATEGORIES,
@@ -80,6 +81,16 @@
   let isbn10 = $state(b?.isbn10 ?? '');
   let goodreadsUrl = $state(b?.goodreadsUrl ?? '');
   let purchases = $state<Purchase[]>(b?.purchases ? structuredClone(b.purchases) : []);
+
+  // Store: a dropdown of the stores used before (most used first); "New store…" turns a
+  // row's dropdown into a box to type one. With no stores yet, rows start with the box.
+  const NEW_STORE = '__new_store__';
+  const otherItems = $derived(library.items.filter((i) => i.id !== itemId));
+  const savedStores = $derived(knownStores(otherItems));
+  const stores = $derived(knownStores(otherItems, purchases.map((p) => p.store)));
+  let typingStore = $state<Record<string, boolean>>(
+    knownStores(library.items).length ? {} : Object.fromEntries((b?.purchases ?? []).map((p) => [p.id, true])),
+  );
 
   const f = existing?.fic;
   let ficUrl = $state(f?.url ?? '');
@@ -319,7 +330,7 @@
         await discardCover(existing.coverUrl);
       }
       // Exchange rates for new prices (skipped quietly if offline or slow).
-      let finalPurchases: Purchase[] = $state.snapshot(purchases).map((p) => ({ ...p, store: p.store?.trim() || undefined }));
+      let finalPurchases: Purchase[] = $state.snapshot(purchases).map((p) => ({ ...p, store: storeName(p.store, savedStores) }));
       if (bookLike && finalPurchases.some((p) => p.price !== undefined && !p.fx) && navigator.onLine) {
         finalPurchases = await Promise.race([
           withRates(finalPurchases),
@@ -433,9 +444,25 @@
     p.fx = jpy && jpy > 0 ? { date: p.date ?? today(), perUsd: { USD: 1, JPY: jpy }, manual: true } : undefined;
   }
 
+  /** The dropdown's stores for a row (its own store is always among them). */
+  const storeOptions = (p: Purchase) => (p.store && !stores.includes(p.store) ? [...stores, p.store] : stores);
+
+  async function pickStore(p: Purchase, value: string) {
+    if (value !== NEW_STORE) {
+      p.store = value || undefined;
+      return;
+    }
+    p.store = undefined;
+    typingStore[p.id] = true;
+    await tick();
+    document.getElementById(`store-${p.id}`)?.focus();
+  }
+
   function addPurchase() {
+    const id = newId();
+    typingStore[id] = stores.length === 0;
     purchases.push({
-      id: newId(),
+      id,
       currency: library.settings.displayCurrency,
       source: 'bought',
       date: undefined,
@@ -808,10 +835,32 @@
                 }}
               />
             </label>
-            <label class="field">
-              <span>Store</span>
-              <input value={p.store ?? ''} oninput={(e) => (p.store = e.currentTarget.value)} placeholder="e.g. Amazon JP" />
-            </label>
+            <div class="field">
+              <label class="label" for="store-{p.id}">Store</label>
+              {#if typingStore[p.id]}
+                <div class="store-new">
+                  <input id="store-{p.id}" value={p.store ?? ''} oninput={(e) => (p.store = e.currentTarget.value)} placeholder="e.g. Amazon JP" />
+                  {#if savedStores.length || purchases.some((q) => q !== p && q.store?.trim())}
+                    <button
+                      type="button"
+                      class="back-to-stores"
+                      aria-label="Back to your stores"
+                      title="Back to your stores"
+                      onclick={() => {
+                        p.store = undefined;
+                        typingStore[p.id] = false;
+                      }}><Icon name="close" size={16} /></button
+                    >
+                  {/if}
+                </div>
+              {:else}
+                <select id="store-{p.id}" value={p.store ?? ''} onchange={(e) => pickStore(p, e.currentTarget.value)}>
+                  <option value="">—</option>
+                  {#each storeOptions(p) as st (st)}<option value={st}>{st}</option>{/each}
+                  <option value={NEW_STORE}>New store…</option>
+                </select>
+              {/if}
+            </div>
             <div class="field remove">
               <button type="button" class="btn danger" onclick={() => purchases.splice(i, 1)}>
                 <Icon name="trash" size={16} /> Remove
@@ -998,6 +1047,37 @@
 
   .remove {
     justify-content: flex-end;
+  }
+
+  .store-new {
+    position: relative;
+  }
+
+  .store-new input {
+    width: 100%;
+    padding-right: 2.2rem;
+  }
+
+  .back-to-stores {
+    position: absolute;
+    right: 0.3rem;
+    top: 50%;
+    translate: 0 -50%;
+    display: grid;
+    place-items: center;
+    width: 1.8rem;
+    height: 1.8rem;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: none;
+    color: var(--text-2);
+    cursor: pointer;
+  }
+
+  .back-to-stores:hover {
+    background: var(--surface-2);
+    color: var(--text);
   }
 
   summary {
