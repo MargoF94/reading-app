@@ -12,7 +12,7 @@
   const entries = $derived(browseIndex(kind));
   const shown = $derived.by(() => {
     const q = normalize(filter);
-    const list = q ? entries.filter((e) => normalize(`${e.name} ${e.sub ?? ''}`).includes(q)) : entries;
+    const list = q ? entries.filter((e) => normalize(`${e.name} ${e.sub ?? ''} ${e.aka ?? ''}`).includes(q)) : entries;
     return sort === 'count' ? [...list].sort((a, b) => b.count - a.count) : list;
   });
 </script>
@@ -39,6 +39,7 @@
             {e.name}
             {#if e.sub}<span class="muted small">· {e.sub}</span>{/if}
             {#if e.length}<span class="muted small">· {e.length}</span>{/if}
+            {#if e.aka}<span class="muted small">· also writes as {e.aka}</span>{/if}
           </span>
           <span class="counts small muted">{e.read ? `${e.read} read · ` : ''}{e.count}</span>
         </a>

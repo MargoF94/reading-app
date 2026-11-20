@@ -1,5 +1,6 @@
 // In-memory library backed by IndexedDB. Components read `library.*`;
 // all writes go through the methods here so they persist and trigger sync.
+import { linkedPseudonyms, pseudonymsOf, unlinkedPseudonym } from './authors';
 import { defaultSettings } from './constants';
 import { discardCover } from './covers';
 import * as db from './db';
@@ -358,6 +359,27 @@ class Library {
     // A group of one is no group.
     if (others.length === 1) changed.push({ ...others[0], workKey: undefined });
     await this.put('items', changed);
+  }
+
+  // ---- pseudonyms: one person writing under several names ------------------
+
+  author(id: string): Author | undefined {
+    const a = this.data.authors.find((x) => x.id === id);
+    return a && !a.deleted ? a : undefined;
+  }
+
+  /** The other names the same person writes under. */
+  pseudonymsOf(author: Author): Author[] {
+    return pseudonymsOf(this.data.authors, this.author(author.id) ?? author);
+  }
+
+  /** Marks two authors as names of the same person; each one's page then lists the other. */
+  async linkPseudonyms(a: Author, b: Author): Promise<void> {
+    await this.put('authors', linkedPseudonyms(this.data.authors, this.author(a.id) ?? a, this.author(b.id) ?? b));
+  }
+
+  async unlinkPseudonym(author: Author): Promise<void> {
+    await this.put('authors', unlinkedPseudonym(this.data.authors, this.author(author.id) ?? author));
   }
 
   // ---- schedule -------------------------------------------------------------

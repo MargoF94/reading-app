@@ -222,6 +222,8 @@ export interface Character extends NamedRecord {
 
 export interface Author extends NamedRecord {
   altNames: string[]; // names in other scripts
+  /** Shared by the names one person writes under (pseudonyms); see lib/authors.ts. */
+  personKey?: string;
 }
 
 export interface Series extends NamedRecord {

@@ -3,6 +3,7 @@
   import Cover from '../components/Cover.svelte';
   import Icon from '../components/Icon.svelte';
   import ItemGrid from '../components/ItemGrid.svelte';
+  import Pseudonyms from '../components/Pseudonyms.svelte';
   import SeriesNotes from '../components/SeriesNotes.svelte';
   import StarRating from '../components/StarRating.svelte';
   import { itemsFor, kindInfo, nameOf, recordOf, seriesRows, type BrowseKind } from '../lib/browse';
@@ -137,6 +138,7 @@
     {/each}
   </ol>
 {:else}
+  {#if kind === 'authors' && record}<Pseudonyms author={record as Author} />{/if}
   {#if topRelationships.length}
     <div class="chips rel">
       {#each topRelationships as [r, n] (r)}

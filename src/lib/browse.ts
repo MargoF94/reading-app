@@ -84,6 +84,8 @@ export interface BrowseEntry {
   sub?: string;
   /** Series: total pages of its books and manga, words of its fics. */
   length?: string;
+  /** Authors: the other names the same person writes under. */
+  aka?: string;
 }
 
 /** Every group of a kind with how many items it has and how many are read. */
@@ -106,7 +108,8 @@ export function browseIndex(kind: BrowseKind): BrowseEntry[] {
     let sub: string | undefined;
     if (kind === 'authors') sub = ((rec as Author | undefined)?.altNames ?? []).join(', ') || undefined;
     const length = kind === 'series' ? lengthSummary(seriesLength(g.items)) || undefined : undefined;
-    out.push({ key, name, count: g.items.length, read: g.read, sub, length });
+    const aka = kind === 'authors' && rec ? library.pseudonymsOf(rec as Author).map((a) => a.name).join(', ') || undefined : undefined;
+    out.push({ key, name, count: g.items.length, read: g.read, sub, length, aka });
   }
   return out.sort((a, b) => collator.compare(a.name, b.name));
 }
