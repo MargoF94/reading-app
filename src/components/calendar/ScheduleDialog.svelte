@@ -69,7 +69,7 @@
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   }
 
-  const ORDER: Record<Status, number> = { 'currently-reading': 0, 'want-to-read': 1, 'on-hold': 2, read: 3, dnf: 4 };
+  const ORDER: Record<Status, number> = { 'currently-reading': 0, 'want-to-read': 1, 'on-hold': 2, read: 3, 'other-edition': 4, dnf: 5 };
   const choices = $derived.by(() => {
     const needle = normalize(search.trim());
     const list = library.items.filter(

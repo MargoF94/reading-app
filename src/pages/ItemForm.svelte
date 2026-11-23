@@ -390,6 +390,7 @@
         workKey: existing?.workKey,
         epubCover: existing?.epubCover,
         pinnedAt: existing?.pinnedAt,
+        otherEdition: existing?.otherEdition,
         wordCount: words,
         wordCountEstimated: words !== undefined && bookLike ? true : undefined,
       };

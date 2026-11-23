@@ -2,13 +2,13 @@
   import BrowseNav from '../components/BrowseNav.svelte';
   import Icon from '../components/Icon.svelte';
   import ItemCard from '../components/ItemCard.svelte';
-  import { FORMATS, LANGUAGE_NAME, STATUSES, TYPES } from '../lib/constants';
+  import { FORMATS, LANGUAGE_NAME, OTHER_EDITION_LABEL, STATUSES, STATUS_LABEL, TYPES } from '../lib/constants';
   import { kindleStatus } from '../lib/kindle.svelte';
   import { lastFinishDate } from '../lib/reading';
   import { router } from '../lib/router.svelte';
   import { seriesOf } from '../lib/series';
   import { library } from '../lib/store.svelte';
-  import type { Author, Item } from '../lib/types';
+  import type { Author, Item, Status } from '../lib/types';
   import { collator, normalize, plural } from '../lib/util';
 
   // Filters live in the URL so Back returns to the same view.
@@ -115,6 +115,9 @@
     return c;
   });
 
+  /** Editions marked "Read in another edition": a filter of their own, not a shelf. */
+  const anyOtherEdition = $derived(library.items.some((i) => library.status(i.id) === 'other-edition'));
+
   const activeFilters = $derived([type, status, format, lang, wip, onKindle].filter(Boolean).length);
   // Only for libraries with files that can go to a Kindle.
   const hasKindleFiles = $derived(library.items.some((i) => kindleStatus(i)));
@@ -187,6 +190,7 @@
       <select value={status} onchange={(e) => router.setQuery({ status: e.currentTarget.value || undefined })}>
         <option value="">Any</option>
         {#each STATUSES as s (s.value)}<option value={s.value}>{s.label}</option>{/each}
+        {#if status === 'other-edition' || anyOtherEdition}<option value="other-edition">{OTHER_EDITION_LABEL}</option>{/if}
       </select>
     </label>
     <label class="field">
@@ -241,7 +245,7 @@
 {:else if status && !SHELVES.some((sh) => sh.value === status)}
   <div class="chips" style="margin-bottom:1rem">
     <button type="button" class="chip accent" onclick={() => router.setQuery({ status: undefined })}>
-      {STATUSES.find((s) => s.value === status)?.label}
+      {STATUS_LABEL[status as Status] ?? status}
       <Icon name="close" size={14} />
     </button>
   </div>

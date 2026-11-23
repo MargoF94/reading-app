@@ -11,7 +11,7 @@
   import { router } from '../lib/router.svelte';
   import { numberIn, seriesLength } from '../lib/series';
   import { library } from '../lib/store.svelte';
-  import type { Author, Item, Series } from '../lib/types';
+  import type { Author, Item, Series, Status } from '../lib/types';
   import { collator, formatNumber, parseNumber, plural } from '../lib/util';
 
   let { kind, key }: { kind: BrowseKind; key: string } = $props();
@@ -42,7 +42,7 @@
   const leftOut = (n: number, what: string) => (n ? ` (${n} more ${n === 1 ? 'has' : 'have'} no ${what})` : '');
 
   // Everything else: currently reading first, then by series, then title.
-  const STATUS_ORDER = { 'currently-reading': 0, 'on-hold': 1, 'want-to-read': 2, read: 3, dnf: 4 };
+  const STATUS_ORDER: Record<Status, number> = { 'currently-reading': 0, 'on-hold': 1, 'want-to-read': 2, read: 3, 'other-edition': 4, dnf: 5 };
   const sorted = $derived(
     [...items].sort(
       (a: Item, b: Item) =>

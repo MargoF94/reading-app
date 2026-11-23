@@ -38,6 +38,15 @@ export function deriveStatus(readings: Reading[]): Status {
   return last.outcome === 'dnf' ? 'dnf' : 'read';
 }
 
+/**
+ * An item's status: from its read-throughs, or "Read in another edition" for a linked edition
+ * marked so (`otherEdition`) while it has no read-throughs of its own.
+ */
+export function itemStatus(readings: Reading[], otherEdition: boolean): Status {
+  const s = deriveStatus(readings);
+  return s === 'want-to-read' && otherEdition ? 'other-edition' : s;
+}
+
 export function finishedReadings(readings: Reading[]): Reading[] {
   return sortReadings(readings).filter((r) => r.outcome === 'finished');
 }
@@ -178,6 +187,8 @@ export function transition(
       const victim = active ?? sorted.at(-1);
       return victim ? { upsert: [], remove: [victim] } : none();
     }
+    case 'other-edition':
+      return none(); // a mark on the item (otherEdition), not a read-through
   }
 }
 

@@ -47,7 +47,7 @@
     waiting = false;
     const shown = announced();
     const seen = new Set([...Object.keys(shown), ...shownHere]);
-    const due = releasesToday(library.items, today(), seen, (i) => ['read', 'dnf'].includes(library.status(i.id)));
+    const due = releasesToday(library.items, today(), seen, (i) => ['read', 'dnf', 'other-edition'].includes(library.status(i.id)));
     if (!due.length) return;
     for (const r of due) {
       shown[r.key] = Date.now();

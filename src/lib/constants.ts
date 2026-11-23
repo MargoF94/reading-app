@@ -8,10 +8,13 @@ export const STATUSES: { value: Status; label: string }[] = [
   { value: 'dnf', label: 'DNF' },
 ];
 
-export const STATUS_LABEL = Object.fromEntries(STATUSES.map((s) => [s.value, s.label])) as Record<
-  Status,
-  string
->;
+/** For a linked edition you didn't read yourself (offered in its status menu, not a shelf). */
+export const OTHER_EDITION_LABEL = 'Read in another edition';
+
+export const STATUS_LABEL = {
+  ...Object.fromEntries(STATUSES.map((s) => [s.value, s.label])),
+  'other-edition': OTHER_EDITION_LABEL,
+} as Record<Status, string>;
 
 export const FORMATS: { value: BookFormat; label: string }[] = [
   { value: 'paperback', label: 'Paperback' },

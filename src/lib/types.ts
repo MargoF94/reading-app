@@ -18,8 +18,11 @@ export const isBookLike = (type: ItemType): boolean => type !== 'fic';
 /** How a book or manga volume is published. (Manga was a format before it was a type of its own.) */
 export type BookFormat = 'hardcover' | 'paperback' | 'ebook' | 'audiobook' | 'other';
 
-/** Shown status. Derived from read-throughs, never stored. */
-export type Status = 'want-to-read' | 'currently-reading' | 'on-hold' | 'read' | 'dnf';
+/**
+ * Shown status. Derived from read-throughs, never stored. 'other-edition' is a linked edition
+ * marked "Read in another edition" (item.otherEdition) that has no read-throughs of its own.
+ */
+export type Status = 'want-to-read' | 'currently-reading' | 'on-hold' | 'read' | 'dnf' | 'other-edition';
 
 export type Currency = 'JPY' | 'USD';
 
@@ -182,6 +185,8 @@ export interface Item extends BaseRecord {
   workKey?: string;
   /** When it was pinned to the top of Home (unset: not pinned). Finishing it unpins it. */
   pinnedAt?: string;
+  /** Marked "Read in another edition" (an edition linked by workKey): off Want to Read. */
+  otherEdition?: boolean;
   book?: BookDetails;
   fic?: FicDetails;
 }

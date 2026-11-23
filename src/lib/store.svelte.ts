@@ -8,7 +8,7 @@ import { emptyCollections, mergeCollections } from './merge';
 import { characterIndex } from './characters';
 import { pinnedItems, unpinsOn } from './pins';
 import { readerProgress } from './reader';
-import { deriveStatus, sortReadings, transition } from './reading';
+import { itemStatus, sortReadings, transition } from './reading';
 import { inSeries } from './series';
 import { COLLECTION_NAMES, isBookLike } from './types';
 import { upgradeCollections, upgrades } from './upgrade';
@@ -58,8 +58,14 @@ class Library {
   });
 
   statusById = $derived.by(() => {
+    // "Read in another edition" counts only while the item is linked to another edition.
+    const editions = new Map<string, number>();
+    for (const item of this.items) if (item.workKey) editions.set(item.workKey, (editions.get(item.workKey) ?? 0) + 1);
     const map = new Map<string, Status>();
-    for (const item of this.items) map.set(item.id, deriveStatus(this.readingsByItem.get(item.id) ?? []));
+    for (const item of this.items) {
+      const linked = !!item.workKey && (editions.get(item.workKey) ?? 0) > 1;
+      map.set(item.id, itemStatus(this.readingsByItem.get(item.id) ?? [], !!item.otherEdition && linked));
+    }
     return map;
   });
 
@@ -309,12 +315,19 @@ class Library {
   }
 
   async setStatus(item: Item, target: Status, date = today()): Promise<void> {
+    const fresh = this.item(item.id);
+    if (target === 'other-edition') {
+      if (fresh && !fresh.otherEdition) await this.put('items', [{ ...fresh, otherEdition: true }]);
+      return;
+    }
     const changes = transition(item, this.readings(item.id), target, date, nowIso());
     await this.put('readings', changes.upsert);
     await this.remove('readings', changes.remove);
-    // Finished (or stopped): no longer pinned to Home.
-    const fresh = this.item(item.id);
-    if (unpinsOn(target) && fresh?.pinnedAt) await this.put('items', [{ ...fresh, pinnedAt: undefined }]);
+    // Any other status replaces "Read in another edition"; finished (or stopped), it's no longer pinned to Home.
+    const unpin = unpinsOn(target) && !!fresh?.pinnedAt;
+    if (fresh && (fresh.otherEdition || unpin)) {
+      await this.put('items', [{ ...fresh, otherEdition: undefined, pinnedAt: unpin ? undefined : fresh.pinnedAt }]);
+    }
   }
 
   /** Pins an item to the top of Home, or unpins it. */
@@ -369,9 +382,10 @@ class Library {
 
   async unlinkEdition(item: Item): Promise<void> {
     const others = this.editionsOf(item);
-    const changed = [{ ...item, workKey: undefined }];
+    // Not an edition of anything any more: not "Read in another edition" either.
+    const changed = [{ ...item, workKey: undefined, otherEdition: undefined }];
     // A group of one is no group.
-    if (others.length === 1) changed.push({ ...others[0], workKey: undefined });
+    if (others.length === 1) changed.push({ ...others[0], workKey: undefined, otherEdition: undefined });
     await this.put('items', changed);
   }
 

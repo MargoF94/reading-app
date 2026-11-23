@@ -471,6 +471,7 @@ function readingsFor(item: Item, b: GoodreadsBook, status: Status, now: string):
 
   switch (status) {
     case 'want-to-read':
+    case 'other-edition': // not a Goodreads shelf
       return [];
     case 'read': {
       const count = Math.max(1, b.readCount);

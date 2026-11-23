@@ -4,6 +4,7 @@ import {
   entryLabel,
   entryPercent,
   isComplete,
+  itemStatus,
   readingRemovedByUndo,
   transition,
 } from '../src/lib/reading';
@@ -87,6 +88,22 @@ describe('status flow', () => {
     expect(readingRemovedByUndo(rs)?.id).toBe(rs[0].id);
     rs = apply(rs, transition(book, rs, 'want-to-read', '2026-09-02', now));
     expect(deriveStatus(rs)).toBe('want-to-read');
+  });
+});
+
+describe('read in another edition', () => {
+  it('shows instead of Want to Read, until the edition has read-throughs of its own', () => {
+    expect(itemStatus([], true)).toBe('other-edition');
+    expect(itemStatus([], false)).toBe('want-to-read');
+    let rs: Reading[] = [];
+    rs = apply(rs, transition(book, rs, 'currently-reading', '2026-09-01', now));
+    expect(itemStatus(rs, true)).toBe('currently-reading');
+    rs = apply(rs, transition(book, rs, 'read', '2026-09-20', now));
+    expect(itemStatus(rs, true)).toBe('read');
+  });
+
+  it('is a mark on the item, not a read-through', () => {
+    expect(transition(book, [], 'other-edition', '2026-09-01', now)).toEqual({ upsert: [], remove: [] });
   });
 });
 

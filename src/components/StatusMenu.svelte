@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { STATUSES, STATUS_LABEL } from '../lib/constants';
+  import { OTHER_EDITION_LABEL, STATUSES, STATUS_LABEL } from '../lib/constants';
   import { readingRemovedByUndo } from '../lib/reading';
   import { library } from '../lib/store.svelte';
   import type { Item, Status } from '../lib/types';
@@ -10,6 +10,8 @@
   let open = $state(false);
   const status = $derived(library.status(item.id));
   const done = $derived(status === 'read' || status === 'dnf');
+  // A linked edition you haven't read yourself can be marked as read in another edition.
+  const canOtherEdition = $derived(library.editionsOf(item).length > 0 && library.readings(item.id).length === 0);
 
   async function pick(target: Status | 'again') {
     open = false;
@@ -62,6 +64,19 @@
           {s.label}
         </button>
       {/each}
+      {#if canOtherEdition}
+        <hr />
+        <button
+          type="button"
+          role="menuitemradio"
+          aria-checked={status === 'other-edition'}
+          class:current={status === 'other-edition'}
+          onclick={() => pick('other-edition')}
+        >
+          {#if status === 'other-edition'}<Icon name="check" size={16} />{:else}<span class="sp"></span>{/if}
+          {OTHER_EDITION_LABEL}
+        </button>
+      {/if}
       {#if done}
         <hr />
         <button type="button" role="menuitem" onclick={() => pick('again')}>
@@ -122,6 +137,7 @@
     align-items: center;
     gap: 0.5em;
     text-align: left;
+    white-space: nowrap; /* each choice on one line: the menu grows to fit */
     background: none;
     border: none;
     color: inherit;

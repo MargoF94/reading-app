@@ -320,7 +320,9 @@
 
   async function markStarted() {
     const it = library.item(itemId);
-    if (it && library.status(itemId) === 'want-to-read') {
+    // Not started (or only read in another edition): reading this one starts it.
+    const status = library.status(itemId);
+    if (it && (status === 'want-to-read' || status === 'other-edition')) {
       await library.setStatus(it, 'currently-reading');
       toasts.show('Marked as Reading — started today.');
     }
