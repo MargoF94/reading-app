@@ -2,6 +2,7 @@
   import { onMount, untrack } from 'svelte';
   import Icon from '../components/Icon.svelte';
   import ReaderContents from '../components/reader/ReaderContents.svelte';
+  import ReaderDetails from '../components/reader/ReaderDetails.svelte';
   import ReaderSettings from '../components/reader/ReaderSettings.svelte';
   import ReaderSheet from '../components/reader/ReaderSheet.svelte';
   import QuoteForm from '../components/quotes/QuoteForm.svelte';
@@ -27,6 +28,7 @@
     type SearchHit,
     type TocEntry,
     type ToFrame,
+    WIDE_MIN_WIDTH,
   } from '../lib/reader';
   import { activeReading, latestEntry } from '../lib/reading';
   import { router } from '../lib/router.svelte';
@@ -55,7 +57,11 @@
   let error = $state('');
   let prefs = $state<ReaderPrefs>({ ...DEFAULT_PREFS });
   let controls = $state(false);
-  let contentsTab = $state<'chapters' | 'search'>('chapters');
+  let contentsTab = $state<'chapters' | 'quotes' | 'search'>('chapters');
+
+  // Wide screens: the book's two columns, or one phone-width column with the book's details beside it.
+  let winWidth = $state(window.innerWidth);
+  const wideLayout = $derived(winWidth >= WIDE_MIN_WIDTH && prefs.wide !== 'columns' ? prefs.wide : null);
   let sheet = $state<null | 'settings' | 'contents' | 'quote' | 'word' | 'edit-quote' | 'edit-word'>(null);
   // Text selected in the book, to save as a quote or look up as a word.
   let selection = $state<{ text: string; cfi?: string; sentence?: string } | null>(null);
@@ -723,17 +729,53 @@
   });
 </script>
 
-<svelte:window onmessage={onMessage} onkeydown={onKey} />
+<svelte:window onmessage={onMessage} onkeydown={onKey} bind:innerWidth={winWidth} />
+
+{#snippet details(part: 'all' | 'left' | 'right')}
+  {#if item}
+    <ReaderDetails
+      {item}
+      {fileId}
+      {part}
+      {percent}
+      chapter={loc.chapter}
+      {leftInChapter}
+      {leftInBook}
+      {toc}
+      current={loc.chapterHref}
+      ongo={go}
+      onword={(w) => {
+        sheet = null;
+        shownQuote = null;
+        shownWord = w;
+      }}
+      onallquotes={() => {
+        contentsTab = 'quotes';
+        sheet = 'contents';
+      }}
+    />
+  {/if}
+{/snippet}
 
 <div
   class="reader"
   class:dark={colors.dark}
+  class:col={!!wideLayout}
+  class:details-right={wideLayout === 'details-right'}
+  class:details-sides={wideLayout === 'details-sides'}
   style:--rbg={colors.bg}
   style:--rfg={colors.fg}
   role="application"
   aria-label="Reader: {item?.title ?? 'book'}"
 >
   <iframe bind:this={frame} src={FRAME_URL} title={item?.title ?? 'Book'} class:hidden={phase !== 'reading'}></iframe>
+
+  {#if wideLayout === 'details-right'}
+    <div class="pane pane-all">{@render details('all')}</div>
+  {:else if wideLayout === 'details-sides'}
+    <div class="pane pane-left">{@render details('left')}</div>
+    <div class="pane pane-right">{@render details('right')}</div>
+  {/if}
 
   {#if sheet || shownQuote || shownWord}
     <button type="button" class="scrim" tabindex="-1" aria-hidden="true" onpointerdown={outsideDown} onclick={outsideTap}></button>
@@ -911,6 +953,7 @@
   {#if sheet === 'settings'}
     <ReaderSettings
       {prefs}
+      wide={winWidth >= WIDE_MIN_WIDTH}
       lang={bookLang}
       customFontName={customFont?.name}
       onfontfile={loadFontFile}
@@ -985,6 +1028,80 @@
 
   iframe.hidden {
     visibility: hidden;
+  }
+
+  /* Wide screens with details: the book in one phone-width column, its details beside it. */
+  .reader.col {
+    --col-w: 470px;
+    --pane-line: color-mix(in srgb, var(--rfg) 12%, transparent);
+  }
+
+  .reader.details-right {
+    --col-l: 40px;
+  }
+
+  .reader.details-sides {
+    --col-l: calc(50% - var(--col-w) / 2);
+  }
+
+  .reader.col iframe,
+  .reader.col .status-line,
+  .reader.col .clock,
+  .reader.col .bar,
+  .reader.col .state {
+    left: var(--col-l);
+    right: auto;
+    width: var(--col-w);
+    box-sizing: border-box;
+  }
+
+  /* The floating card at the bottom (on wide screens), in the middle of the column. */
+  .reader.col .bottom {
+    left: calc(var(--col-l) + var(--col-w) / 2);
+    right: auto;
+    translate: -50% 0;
+    width: calc(var(--col-w) - 1.5rem);
+    box-sizing: border-box;
+  }
+
+  .reader.col .select-bar,
+  .reader.col .quote-pop,
+  .reader.col .elsewhere {
+    left: calc(var(--col-l) + var(--col-w) / 2);
+    right: auto;
+    translate: -50% 0;
+    max-width: calc(var(--col-w) - 1.5rem);
+  }
+
+  .reader.col .quote-pop,
+  .reader.col .elsewhere {
+    width: calc(var(--col-w) - 1.5rem);
+    box-sizing: border-box;
+  }
+
+  .pane {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+  }
+
+  .pane-all {
+    left: calc(2 * var(--col-l) + var(--col-w));
+    right: 0;
+    border-left: 1px solid var(--pane-line);
+  }
+
+  .pane-left {
+    left: 0;
+    width: var(--col-l);
+    border-right: 1px solid var(--pane-line);
+    box-sizing: border-box;
+  }
+
+  .pane-right {
+    left: calc(var(--col-l) + var(--col-w));
+    right: 0;
+    border-left: 1px solid var(--pane-line);
   }
 
   /* Over the page while a menu is open (under the menus and the top bar), see-through so text changes show. */

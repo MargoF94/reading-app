@@ -32,6 +32,13 @@ describe('reader settings', () => {
     expect(p).toMatchObject({ fontSize: 220, lineHeight: 1.2, margin: 0, theme: 'white', layout: 'scroll' });
   });
 
+  it('remembers the layout for wide screens, two columns unless chosen', () => {
+    expect(cleanPrefs({}).wide).toBe('columns');
+    expect(cleanPrefs({ wide: 'details-right' }).wide).toBe('details-right');
+    expect(cleanPrefs({ wide: 'details-sides' }).wide).toBe('details-sides');
+    expect(cleanPrefs({ wide: 'sideways' }).wide).toBe('columns');
+  });
+
   it('puts line spacing, size and theme into the book', () => {
     const css = readerCss({ ...DEFAULT_PREFS, lineHeight: 2.1, fontSize: 130, theme: 'dark' }, 'en');
     expect(css).toContain('line-height: 2.1 !important');

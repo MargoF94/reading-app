@@ -11,6 +11,15 @@ export type ReaderLayout = 'pages' | 'scroll';
 /** Japanese books only: keep the book's direction, or force one. */
 export type ReaderWriting = 'book' | 'vertical' | 'horizontal';
 
+/**
+ * On wide screens (computers, tablets held sideways): the book's own two columns, or one
+ * phone-width column with the book's details beside it (on the right, or on both sides).
+ */
+export type ReaderWideLayout = 'columns' | 'details-right' | 'details-sides';
+export const WIDE_LAYOUTS: readonly ReaderWideLayout[] = ['columns', 'details-right', 'details-sides'];
+/** Window width (CSS pixels) from which the wide-screen layout applies. */
+export const WIDE_MIN_WIDTH = 1024;
+
 /** What the bottom-left corner shows; tap it to switch, like on a Kindle. */
 export type ReaderFooter = 'location' | 'page' | 'chapter-time' | 'book-time' | 'off';
 export const FOOTER_ORDER: ReaderFooter[] = ['location', 'page', 'chapter-time', 'book-time', 'off'];
@@ -24,6 +33,7 @@ export interface ReaderPrefs {
   layout: ReaderLayout;
   writing: ReaderWriting;
   footer: ReaderFooter;
+  wide: ReaderWideLayout;
 }
 
 export const DEFAULT_PREFS: ReaderPrefs = {
@@ -35,6 +45,7 @@ export const DEFAULT_PREFS: ReaderPrefs = {
   layout: 'pages',
   writing: 'book',
   footer: 'location',
+  wide: 'columns',
 };
 
 export const PREF_LIMITS = {
@@ -59,6 +70,7 @@ export function cleanPrefs(raw: unknown): ReaderPrefs {
     layout: pick(p.layout, ['pages', 'scroll'] as const, DEFAULT_PREFS.layout),
     writing: pick(p.writing, ['book', 'vertical', 'horizontal'] as const, DEFAULT_PREFS.writing),
     footer: pick(p.footer, FOOTER_ORDER, DEFAULT_PREFS.footer),
+    wide: pick(p.wide, WIDE_LAYOUTS, DEFAULT_PREFS.wide),
   };
 }
 

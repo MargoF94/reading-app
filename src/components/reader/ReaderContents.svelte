@@ -18,7 +18,7 @@
     onsearch,
     onclose,
   }: {
-    initialTab?: 'chapters' | 'search';
+    initialTab?: 'chapters' | 'quotes' | 'search';
     toc: TocEntry[];
     current?: string;
     bookmarks: ReaderBookmark[];
@@ -35,7 +35,7 @@
   // svelte-ignore state_referenced_locally
   type Tab = 'chapters' | 'bookmarks' | 'quotes' | 'search';
   // svelte-ignore state_referenced_locally
-  let tab = $state<Tab>(searched ? 'search' : initialTab);
+  let tab = $state<Tab>(initialTab === 'quotes' ? 'quotes' : searched ? 'search' : initialTab);
   const TABS: [Tab, string][] = [
     ['chapters', 'Chapters'],
     ['bookmarks', 'Bookmarks'],

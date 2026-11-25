@@ -5,6 +5,7 @@
   // Text size, colours, font, line spacing, side margins and layout. Changes show at once.
   let {
     prefs,
+    wide = false,
     lang,
     customFontName = undefined,
     onfontfile,
@@ -13,6 +14,8 @@
     onclose,
   }: {
     prefs: ReaderPrefs;
+    /** A wide screen: offers the layouts with the book's details beside it. */
+    wide?: boolean;
     lang?: string;
     customFontName?: string;
     onfontfile: (f: File) => void;
@@ -50,6 +53,11 @@
   const LAYOUTS = [
     ['pages', 'Pages'],
     ['scroll', 'Scroll'],
+  ] as const;
+  const WIDES = [
+    ['columns', 'Two columns'],
+    ['details-right', 'Details on the right'],
+    ['details-sides', 'Details on both sides'],
   ] as const;
   const WRITING = [
     ['book', 'As the book'],
@@ -169,6 +177,31 @@
     {/each}
   </div>
 
+  {#if wide}
+    <div class="lab">On wide screens</div>
+    <div class="wides" role="radiogroup" aria-label="Layout on wide screens">
+      {#each WIDES as [w, label] (w)}
+        <button type="button" role="radio" aria-checked={prefs.wide === w} class:on={prefs.wide === w} onclick={() => set('wide', w)}>
+          <!-- A little picture of the layout: text as lines, details as shaded panels. -->
+          <svg viewBox="0 0 48 30" aria-hidden="true">
+            <rect class="screen" x="0.5" y="0.5" width="47" height="29" rx="3" />
+            {#if w === 'columns'}
+              {#each [6, 26] as x (x)}{#each [7, 11, 15, 19, 23] as y (y)}<path class="text" d="M{x} {y}h16" />{/each}{/each}
+            {:else if w === 'details-right'}
+              {#each [7, 11, 15, 19, 23] as y (y)}<path class="text" d="M5 {y}h13" />{/each}
+              <rect class="panel" x="22" y="1" width="25" height="28" />
+            {:else}
+              <rect class="panel" x="1" y="1" width="13" height="28" />
+              {#each [7, 11, 15, 19, 23] as y (y)}<path class="text" d="M17.5 {y}h13" />{/each}
+              <rect class="panel" x="34" y="1" width="13" height="28" />
+            {/if}
+          </svg>
+          <span>{label}</span>
+        </button>
+      {/each}
+    </div>
+  {/if}
+
   {#if isJapanese(lang)}
     <div class="lab">Japanese text</div>
     <div class="seg" role="radiogroup" aria-label="Japanese text direction">
@@ -206,6 +239,7 @@
       right: 1rem;
       bottom: 1rem;
       width: 380px;
+      max-height: calc(100% - 2rem);
       border-radius: 14px;
     }
   }
@@ -356,6 +390,58 @@
 
   .fonts {
     flex-wrap: wrap;
+  }
+
+  .wides {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .wides button {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.55rem 0.3rem 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: none;
+    color: var(--text-2);
+    font: inherit;
+    font-size: 0.78rem;
+    line-height: 1.2;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  .wides button.on {
+    color: var(--text);
+    font-weight: 600;
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .wides svg {
+    width: 48px;
+    height: 30px;
+  }
+
+  .wides .screen {
+    fill: none;
+    stroke: currentColor;
+    stroke-opacity: 0.45;
+  }
+
+  .wides .text {
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+  }
+
+  .wides .panel {
+    fill: currentColor;
+    fill-opacity: 0.16;
   }
 
   .font-note {
